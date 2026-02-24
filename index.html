@@ -495,10 +495,10 @@
         <div class="work-layout">
           
           <!-- ================= 左側列 (キャンバスと抽出ツール) ================= -->
-          <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 12px;">
+          <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 12px; min-height: 0;">
             
             <!-- 上段: ツールバー (設定とモード) -->
-            <div class="toolbar-container" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="toolbar-container" style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
               <!-- モード選択 (左寄せ) -->
               <div class="setting-item">
                 <label>モード</label>
@@ -545,10 +545,10 @@
             </div>
 
             <!-- 下段: キャンバス Area (ツール選択とキャンバス) -->
-            <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
+            <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0;">
               
               <!-- キャンバス上部のツール選択グループ -->
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-shrink: 0;">
                 <div class="btn-group">
                   <!-- 固定ヘッダー -->
                   <button class="btn" id="btnSelectFixedHeader" style="display:none;">
@@ -616,7 +616,7 @@
           <div style="width: 300px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; min-height: 0;">
             
             <!-- 右側ツールバー (情報とナビゲーション) -->
-            <div class="toolbar-container" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="toolbar-container" style="display: flex; flex-direction: column; gap: 16px; flex-shrink: 0;">
               <!-- 図面名称 (左揃え＆アイコン付き) -->
               <div style="display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; overflow: hidden;">
                 <span class="material-symbols-rounded" style="color: var(--primary); font-size: 24px; flex-shrink: 0;">format_list_bulleted</span>
