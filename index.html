@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>画像抽出アプリ</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ===== Reset & Base ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* Base Colors (Shared) */
+      --primary: #3b82f6;       
+      --primary-hover: #60a5fa; 
+      --primary-light: rgba(59, 130, 246, 0.2); 
+      --danger: #ef4444;        
+      --danger-hover: #f87171;  
+      --success: #10b981;       
+      --warning: #f59e0b;       
+      
+      --radius-sm: 6px;
+      --radius: 10px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+      --shadow: 0 4px 6px -1px rgba(0,0,0,0.3), 0 2px 4px -1px rgba(0,0,0,0.2);
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -2px rgba(0,0,0,0.2);
+    }
+
+    /* Light Theme Palette */
+    html[data-theme="light"] {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-alt: #f1f5f9;
+      --border: #e2e8f0;
+      --border-dark: #cbd5e1;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+      
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.03);
+    }
+
+    /* Dark Theme Palette (Default) */
+    html[data-theme="dark"] {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface-alt: #334155;
+      --border: #475569;
+      --border-dark: #64748b;
+      --text-main: #f8fafc;
+      --text-muted: #cbd5e1;
+      --text-light: #94a3b8;
+    }
+
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    /* ===== Utility ===== */
+    .hidden { display: none !important; }
+
+    /* ===== Custom Scrollbar ===== */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-light); }
+
+    /* ===== Layout ===== */
+    #app {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 24px 32px;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    header h1 .material-symbols-rounded { color: var(--primary); font-size: 28px; }
+
+    /* ===== Stepper ===== */
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--surface);
+      padding: 12px 24px;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+    }
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+    }
+    .step-item.active { color: var(--primary); }
+    .step-item.completed { color: var(--text-main); }
+    .step-num {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--surface-alt);
+      font-size: 0.8rem;
+    }
+    .step-item.active .step-num { background: var(--primary); color: #ffffff; }
+    .step-item.completed .step-num { background: var(--text-main); color: var(--surface); }
+    .step-divider { flex: 1; height: 2px; background: var(--border); min-width: 40px; }
+    .step-item.completed + .step-divider { background: var(--text-main); }
+
+    /* ===== Step Container ===== */
+    .step-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      transition: opacity 0.3s ease;
+    }
+    .step-inner { padding: 32px; overflow-y: auto; height: 100%; display: flex; flex-direction: column; }
+
+    .step-title {
+      font-size: 1.25rem; font-weight: 700; margin-bottom: 20px;
+      color: var(--text-main);
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0;
+    }
+
+    /* ===== Buttons & Inputs ===== */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 10px 20px; border: none; border-radius: var(--radius);
+      font-size: 0.9rem; font-weight: 600; cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: #ffffff; box-shadow: 0 2px 4px rgba(59,130,246,0.2); }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); transform: translateY(-1px); }
+    .btn-secondary { background: var(--surface-alt); color: var(--text-main); border: 1px solid var(--border-dark); }
+    .btn-secondary:hover:not(:disabled) { background: var(--border); }
+    
+    /* Soft Danger Button */
+    .btn-soft-danger { 
+      background: rgba(239, 68, 68, 0.15); 
+      color: #ef4444; 
+      border: 1px solid rgba(239, 68, 68, 0.3); 
+    }
+    .btn-soft-danger:hover:not(:disabled) { 
+      background: rgba(239, 68, 68, 0.25); 
+    }
+    
+    .btn-danger-outline { background: transparent; color: var(--danger); border: 1px solid rgba(239,68,68,0.5); }
+    .btn-danger-outline:hover:not(:disabled) { background: rgba(239,68,68,0.2); border-color: var(--danger); }
+    
+    .btn-sm { padding: 6px 14px; font-size: 0.85rem; }
+    .btn-icon { padding: 8px; min-width: 36px; border-radius: var(--radius); }
+    .material-symbols-rounded { font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24; font-size: 20px; }
+    
+    /* Button Groups (Segmented Control) */
+    .btn-group {
+      display: inline-flex;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 4px;
+    }
+    .btn-group .btn {
+      background: transparent; color: var(--text-muted); border: none; box-shadow: none;
+      border-radius: var(--radius-sm); padding: 8px 16px;
+    }
+    .btn-group .btn:hover:not(:disabled) { color: var(--text-main); background: rgba(255,255,255,0.05); transform: none; }
+    .btn-group .btn.active { background: var(--surface); color: var(--primary); box-shadow: var(--shadow-sm); font-weight: 700; border: 1px solid var(--border); }
+
+    .btn-group.toggle-group .btn { padding: 6px 12px; font-size: 0.8rem; }
+
+    /* ===== Upload Area ===== */
+    .upload-area {
+      border: 2px dashed var(--border-dark); border-radius: var(--radius-lg);
+      padding: 64px 24px; text-align: center;
+      transition: all 0.2s; background: var(--surface-alt);
+      flex-shrink: 0;
+    }
+    .upload-area.dragover { border-color: var(--primary); background: var(--primary-light); }
+    .upload-icon .material-symbols-rounded { font-size: 64px; color: var(--text-light); margin-bottom: 16px; }
+    .upload-area.dragover .upload-icon .material-symbols-rounded { color: var(--primary); }
+    .upload-area p { color: var(--text-muted); margin-bottom: 24px; font-size: 1.1rem; }
+
+    /* ===== Step 2: Thumbnails ===== */
+    .page-filter-controls { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-shrink: 0; }
+    .hint { font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-bottom: 16px; flex-shrink: 0;}
+    
+    .page-thumbnails {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); 
+      grid-auto-rows: max-content; 
+      gap: 16px;
+      padding: 4px; flex: 1; overflow-y: auto; 
+      align-content: flex-start;
+      min-height: 0;
+    }
+    .page-thumb {
+      background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; cursor: pointer; transition: all 0.2s; position: relative;
+      display: flex; flex-direction: column;
+      aspect-ratio: 1; 
+    }
+    .page-thumb:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: var(--border-dark); }
+    .page-thumb.selected { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-light); }
+    .page-thumb.selected::after {
+      content: '\e86c'; font-family: 'Material Symbols Rounded';
+      position: absolute; top: 8px; right: 8px; background: var(--primary); color: #fff;
+      border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 16px;
+      z-index: 10;
+    }
+    
+    .page-thumb-image-container {
+      width: 100%;
+      flex: 1; 
+      background-color: #ffffff; 
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .page-thumb canvas { 
+      max-width: 100%; 
+      max-height: 100%; 
+      width: auto !important; 
+      height: auto !important; 
+      display: block; 
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15); 
+    } 
+
+    .page-thumb-info { 
+      padding: 8px 10px; 
+      display: flex; 
+      align-items: center; 
+      gap: 6px; 
+      flex-shrink: 0; 
+    }
+    .page-thumb-label { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+    .page-thumb-name { 
+      font-size: 0.8rem; 
+      font-weight: 600; 
+      white-space: nowrap; 
+      overflow: hidden; 
+      text-overflow: ellipsis; 
+      color: var(--text-main); 
+      text-align: left; 
+      flex: 1; 
+    }
+
+    /* ===== Step 3: Work Area ===== */
+    .work-area {
+      display: flex; flex-direction: column; height: 100%; gap: 16px;
+    }
+    .work-layout {
+      display: flex; flex: 1; gap: 16px; min-height: 0;
+    }
+
+    /* Toolbar Redesign */
+    .toolbar-container {
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px 20px;
+    }
+    
+    .setting-item { display: flex; align-items: center; gap: 8px; }
+    .setting-item label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
+
+    .list-name-display { 
+      font-size: 1.1rem; font-weight: 700; color: var(--primary); 
+      white-space: nowrap; overflow: hidden; min-width: 0;
+    }
+    .badge-info {
+      background: var(--surface); border: 1px solid var(--border); padding: 6px 12px;
+      border-radius: 20px; font-size: 0.85rem; font-weight: 600; color: var(--text-main);
+      display: flex; align-items: center; gap: 6px; box-shadow: var(--shadow-sm);
+    }
+
+    /* Canvas Container */
+    .main-canvas-wrapper {
+      flex: 1; position: relative; border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg); overflow: auto;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+      z-index: 1;
+    }
+    #pdfCanvas { display: block; margin: 0 auto; background-color: #ffffff; } 
+    .selection-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; }
+
+    /* Side Panel */
+    .side-panel {
+      width: 300px; display: flex; flex-direction: column; gap: 16px;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px;
+    }
+    .side-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 12px; border-bottom: 1px solid var(--border-dark); flex-shrink: 0;
+    }
+    .side-panel-header h3 { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 6px; color: var(--text-main); }
+    .side-panel-header h3 span { color: var(--primary); }
+
+    .extracted-list {
+      flex: 1; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; 
+      grid-auto-rows: max-content; 
+      gap: 10px; align-content: flex-start;
+      padding-right: 4px; min-height: 0;
+    }
+    .extracted-item {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      overflow: hidden; box-shadow: var(--shadow-sm); transition: transform 0.2s, box-shadow 0.2s;
+      position: relative; display: flex; flex-direction: column;
+    }
+    .extracted-item:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--border-dark); }
+    .extracted-item img { 
+      width: 100%; height: 100px; flex-shrink: 0; 
+      object-fit: contain; background: #ffffff; display: block; cursor: pointer; 
+    }
+    .extracted-item-label {
+      padding: 6px; font-size: 0.65rem; font-weight: 600; background: var(--surface-alt);
+      border-top: 1px solid var(--border); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      flex-shrink: 0; color: var(--text-main);
+    }
+    .del-btn {
+      position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%;
+      background: rgba(30, 41, 59, 0.9); border: 1px solid var(--border); color: #ef4444;
+      display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: all 0.2s;
+      box-shadow: var(--shadow-sm);
+    }
+    .extracted-item:hover .del-btn { opacity: 1; }
+    .del-btn:hover { background: #ef4444; color: #ffffff; border-color: #ef4444; }
+    .del-btn .material-symbols-rounded { font-size: 14px; }
+
+    /* Selection Rects */
+    .selection-rect { position: absolute; border: 2px dashed; pointer-events: none; border-radius: 2px; }
+    .selection-rect.header-sel { border-color: var(--warning); background: rgba(245,158,11,0.2); }
+    .selection-rect.fixed-header-sel { border-color: #8b5cf6; background: rgba(139,92,246,0.2); }
+    .selection-rect.header-row-sel { border-color: #06b6d4; background: rgba(6,182,212,0.2); }
+    .selection-rect.target-sel { border-color: var(--success); background: rgba(16,185,129,0.2); }
+    .selection-rect.confirmed { border-style: solid; z-index: 10; }
+    
+    .history-rect {
+      opacity: 0.8 !important; border-color: var(--border-dark) !important;
+      background: rgba(148, 163, 184, 0.15) !important; border-style: dashed !important; z-index: 1 !important;
+    }
+
+    /* Loading & Toast */
+    .loading-info {
+      padding: 16px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: var(--radius); color: var(--primary-hover); font-weight: 600;
+      display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 20px;
+    }
+    .loading-info .material-symbols-rounded { animation: spin 2s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    .toast {
+      position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px);
+      padding: 12px 24px; background: var(--surface-alt); color: var(--text-main); font-weight: 500;
+      border-radius: 30px; border: 1px solid var(--border); box-shadow: var(--shadow-lg); z-index: 1000;
+      display: flex; align-items: center; gap: 8px;
+      opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Modal */
+    .preview-modal {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 2000; cursor: zoom-out; animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .preview-modal img { max-width: 90vw; max-height: 85vh; border-radius: var(--radius); box-shadow: var(--shadow-lg); background: #ffffff; }
+    .preview-modal-name { margin-top: 16px; background: var(--surface); color: var(--text-main); padding: 8px 24px; border-radius: 30px; font-weight: 600; box-shadow: var(--shadow); border: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <h1><span class="material-symbols-rounded">crop_free</span>画像抽出アプリ</h1>
+        <!-- ソフトな赤色のリセットボタン -->
+        <button class="btn btn-soft-danger btn-sm btn-reset-all" title="最初からやり直す" style="padding: 6px 12px;">
+          <span class="material-symbols-rounded" style="font-size: 16px;">restart_alt</span> 最初からやり直す
+        </button>
+      </div>
+      
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <!-- ★ テーマ切り替えボタン ★ -->
+        <button id="themeToggle" class="btn btn-icon btn-secondary" style="border-radius: 50%;" title="テーマ切り替え">
+          <span class="material-symbols-rounded" id="themeIcon">light_mode</span>
+        </button>
+
+        <!-- Stepper -->
+        <div class="stepper">
+          <div class="step-item active" id="st1">
+            <div class="step-num">1</div><span>PDF読込</span>
+          </div>
+          <div class="step-divider"></div>
+          <div class="step-item" id="st2">
+            <div class="step-num">2</div><span>ページ選択</span>
+          </div>
+          <div class="step-divider"></div>
+          <div class="step-item" id="st3">
+            <div class="step-num">3</div><span>抽出作業</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ステップ1: PDF読み込み -->
+    <div id="step1" class="step-content active">
+      <div class="step-inner">
+        <h2 class="step-title"><span class="material-symbols-rounded">upload_file</span>PDFファイルをアップロード</h2>
+        <div class="upload-area" id="dropZone">
+          <div class="upload-icon"><span class="material-symbols-rounded">note_add</span></div>
+          <p>PDFファイルをドラッグ＆ドロップ<br>または</p>
+          <label class="btn btn-primary btn-lg">
+            <span class="material-symbols-rounded">folder_open</span> ファイルを選択
+            <input type="file" id="pdfInput" accept=".pdf" hidden>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- ステップ2: ページ絞り込み -->
+    <div id="step2" class="step-content hidden">
+      <div class="step-inner">
+        <div class="page-filter-controls">
+          <h2 class="step-title" style="margin:0;"><span class="material-symbols-rounded">content_copy</span>対象ページの選択</h2>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary btn-sm" id="btnSelectAll">全選択</button>
+            <button class="btn btn-secondary btn-sm" id="btnDeselectAll">全解除</button>
+          </div>
+        </div>
+        <p class="hint"><span class="material-symbols-rounded" style="font-size:16px">info</span>Shift+クリックで複数範囲選択｜図面名称から「リスト」を含むページを自動判定します</p>
+        
+        <div id="loadingInfo" class="loading-info hidden"><span class="material-symbols-rounded">autorenew</span>解析中...</div>
+        
+        <!-- サムネイル上部に移動したナビゲーション -->
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px; flex-shrink: 0;">
+          <div class="badge-info" style="background:var(--surface-alt)">
+            <span class="material-symbols-rounded" style="color: var(--primary);">check_circle</span>
+            <span id="pageIndicator">0 / 0 選択中</span>
+          </div>
+          <button class="btn btn-primary" id="goToStep3" disabled>
+            選択したページで作業開始 <span class="material-symbols-rounded">arrow_forward</span>
+          </button>
+        </div>
+
+        <div class="page-thumbnails" id="pageThumbnails"></div>
+      </div>
+    </div>
+
+    <!-- ステップ3: 範囲選択・抽出 -->
+    <div id="step3" class="step-content hidden" style="padding: 16px; background: var(--surface);">
+      <div class="work-area">
+        
+        <!-- Layout Split (左右分割) -->
+        <div class="work-layout">
+          
+          <!-- ================= 左側列 (キャンバスと抽出ツール) ================= -->
+          <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 12px;">
+            
+            <!-- 上段: ツールバー (設定とモード) -->
+            <div class="toolbar-container" style="display: flex; justify-content: space-between; align-items: center;">
+              <!-- モード選択 (左寄せ) -->
+              <div class="setting-item">
+                <label>モード</label>
+                <div class="btn-group toggle-group" id="selectionModeGroup">
+                  <button class="btn active" data-value="headerOnly">見出しのみ</button>
+                  <button class="btn" data-value="withHeader">ヘッダーあり</button>
+                  <button class="btn" data-value="single">単一抽出</button>
+                </div>
+                
+                <!-- ★ 歯車ボタンとポップオーバー ★ -->
+                <div style="position: relative;">
+                  <button id="btnSettingsToggle" class="btn btn-secondary btn-sm" title="検出設定" style="padding: 4px 8px; border-radius: var(--radius-sm);">
+                    <span class="material-symbols-rounded" style="font-size: 18px;">settings</span>
+                  </button>
+                  <div id="settingsPopover" class="hidden" style="position: absolute; top: 100%; left: 0; margin-top: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-lg); z-index: 100; min-width: 240px;">
+                    <div style="margin-bottom: 12px;">
+                      <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">
+                        <span>罫線検出感度</span>
+                        <span id="thresholdValue">170</span>
+                      </div>
+                      <input type="range" id="gridThreshold" min="30" max="200" value="170" style="width: 100%; accent-color: var(--primary);">
+                    </div>
+                    <div>
+                      <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">
+                        <span>最小線長</span>
+                        <span id="minLineLenValue">100</span>
+                      </div>
+                      <input type="range" id="minLineLen" min="10" max="200" value="100" style="width: 100%; accent-color: var(--primary);">
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 見出し位置 (右寄せ) -->
+              <div class="setting-item" id="positionSettingItem">
+                <label>見出し位置</label>
+                <div class="btn-group toggle-group" id="headerPositionGroup">
+                  <button class="btn active" data-value="left">左</button>
+                  <button class="btn" data-value="right">右</button>
+                  <button class="btn" data-value="top">上</button>
+                  <button class="btn" data-value="bottom">下</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 下段: キャンバス Area (ツール選択とキャンバス) -->
+            <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
+              
+              <!-- キャンバス上部のツール選択グループ -->
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div class="btn-group">
+                  <!-- 固定ヘッダー -->
+                  <button class="btn" id="btnSelectFixedHeader" style="display:none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                      <path d="M12 3 H 5 A 2 2 0 0 0 3 5 V 12 H 12 Z" fill="currentColor" stroke="none" />
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <line x1="12" y1="3" x2="12" y2="21" />
+                      <line x1="3" y1="12" x2="21" y2="12" />
+                    </svg>
+                    固定ヘッダー
+                  </button>
+                  <!-- 見出し -->
+                  <button class="btn active" id="btnSelectHeader" style="display:inline-flex;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                      <path id="iconPathHeader" d="M12 3 H 5 A 2 2 0 0 0 3 5 V 19 A 2 2 0 0 0 5 21 H 12 Z" fill="currentColor" stroke="none" />
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <line x1="12" y1="3" x2="12" y2="21" />
+                      <line x1="3" y1="12" x2="21" y2="12" />
+                    </svg>
+                    見出し
+                  </button>
+                  <!-- ヘッダー行 -->
+                  <button class="btn" id="btnSelectHeaderRow" style="display:none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                      <path d="M12 3 H 19 A 2 2 0 0 1 21 5 V 12 H 12 Z" fill="currentColor" stroke="none" />
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <line x1="12" y1="3" x2="12" y2="21" />
+                      <line x1="3" y1="12" x2="21" y2="12" />
+                    </svg>
+                    ヘッダー
+                  </button>
+                  <!-- 対象範囲 -->
+                  <button class="btn" id="btnSelectTarget" disabled style="display:inline-flex;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                      <path id="iconPathTarget" d="M12 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 12 Z" fill="currentColor" stroke="none" />
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <line x1="12" y1="3" x2="12" y2="21" />
+                      <line x1="3" y1="12" x2="21" y2="12" />
+                    </svg>
+                    対象範囲
+                  </button>
+                </div>
+                
+                <!-- 選択方法（ラベルなし）と 選択解除 -->
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <div class="btn-group toggle-group" id="selectMethodGroup">
+                    <button class="btn active" data-value="auto">自動</button>
+                    <button class="btn" data-value="manual">手動</button>
+                  </div>
+                  <button class="btn btn-sm btn-danger-outline" id="btnClearHeader" disabled title="現在の選択をクリア">
+                    <span class="material-symbols-rounded" style="font-size:16px">layers_clear</span> 選択解除
+                  </button>
+                </div>
+              </div>
+              
+              <div class="main-canvas-wrapper" id="canvasContainer">
+                <canvas id="pdfCanvas"></canvas>
+                <div class="selection-overlay" id="selectionOverlay"></div>
+              </div>
+            </div>
+
+          </div>
+          
+          <!-- ================= 右側列 (図面情報と抽出済みリスト) ================= -->
+          <div style="width: 300px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; min-height: 0;">
+            
+            <!-- 右側ツールバー (情報とナビゲーション) -->
+            <div class="toolbar-container" style="display: flex; flex-direction: column; gap: 16px;">
+              <!-- 図面名称 (左揃え＆アイコン付き) -->
+              <div style="display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; overflow: hidden;">
+                <span class="material-symbols-rounded" style="color: var(--primary); font-size: 24px; flex-shrink: 0;">format_list_bulleted</span>
+                <span class="list-name-display" id="listNameDisplay">図面名称</span>
+              </div>
+              
+              <!-- ナビゲーション (ページ送り・中央揃え) -->
+              <div style="display: flex; justify-content: center; align-items: center; gap: 12px; width: 100%;">
+                <button class="btn btn-icon btn-secondary" id="btnPrevWork" title="前のページ" style="border-radius: 50%; width: 36px; height: 36px; padding: 0;">
+                  <span class="material-symbols-rounded" style="font-size: 20px;">chevron_left</span>
+                </button>
+                
+                <div class="badge-info" style="margin: 0; padding: 4px 16px;">
+                  <span id="currentPageLabel" style="font-size: 0.85rem;">- / -</span>
+                </div>
+                
+                <button class="btn btn-icon btn-secondary" id="btnNextWork" title="次のページ" style="border-radius: 50%; width: 36px; height: 36px; padding: 0;">
+                  <span class="material-symbols-rounded" style="font-size: 20px;">chevron_right</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Side Panel (抽出リスト) -->
+            <div class="side-panel" style="flex: 1; margin: 0; min-height: 0; display: flex; flex-direction: column;">
+              <div class="side-panel-header">
+                <h3><span class="material-symbols-rounded">imagesmode</span>抽出済み <span id="extractCount" style="color:var(--text-muted);font-weight:600;font-size:0.9rem;">(0)</span></h3>
+                <button class="btn btn-icon btn-primary btn-sm" id="btnDownloadAll" disabled title="ZIPでダウンロード">
+                  <span class="material-symbols-rounded">download</span>
+                </button>
+              </div>
+              <!-- リスト領域 -->
+              <div id="extractedList" class="extracted-list" style="flex: 1;"></div>
+              
+              <!-- ★ ソフトな赤色の「画像をクリア」ボタン ★ -->
+              <button class="btn btn-soft-danger btn-sm" id="btnClearImages" disabled style="width: 100%; margin-top: 12px; flex-shrink: 0;">
+                <span class="material-symbols-rounded">delete_sweep</span> 画像をすべてクリア
+              </button>
+            </div>
+            
+          </div>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"><span class="material-symbols-rounded">info</span><span id="toastMsg"></span></div>
+
+  <!-- 外部ライブラリ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  
+  <script>
+    // ===== Theme Management =====
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    let isDark = true; // Default to dark mode
+
+    function applyTheme() {
+      document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+      themeIcon.textContent = isDark ? 'light_mode' : 'dark_mode';
+    }
+
+    themeToggle.addEventListener('click', () => {
+      isDark = !isDark;
+      applyTheme();
+    });
+    applyTheme(); // Set initial theme
+
+    // PDF.jsのワーカーパスを設定
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // ===== State =====
+    var state = {
+      pdfDoc: null, pages: [], selectedPages: [], currentWorkPage: 0, scale: 2,
+      mode: 'header', headerPosition: 'left',
+      headerRegion: null, headerCells: [], targetRegion: null, targetCells: [],
+      headerImageData: null, headerRect: null,
+      headerRowRegion: null, headerRowCells: [], headerRowImageData: null,
+      fixedHeaderRegion: null, fixedHeaderImageData: null,
+      selectionMode: 'headerOnly', selectMethod: 'auto',
+      extractedImages: [], historyRegions: [],
+      isDragging: false, dragStart: null, dragCurrent: null, lastClickedIndex: -1,
+    };
+
+    // ===== DOM =====
+    function qs(sel) { return document.querySelector(sel); }
+
+    var dom = {
+      pdfInput: qs('#pdfInput'), dropZone: qs('#dropZone'),
+      loadingInfo: qs('#loadingInfo'),
+      step1: qs('#step1'), step2: qs('#step2'), step3: qs('#step3'),
+      st1: qs('#st1'), st2: qs('#st2'), st3: qs('#st3'),
+      pageThumbnails: qs('#pageThumbnails'), pageIndicator: qs('#pageIndicator'),
+      goToStep3: qs('#goToStep3'), btnSelectAll: qs('#btnSelectAll'), btnDeselectAll: qs('#btnDeselectAll'),
+      listNameDisplay: qs('#listNameDisplay'), currentPageLabel: qs('#currentPageLabel'),
+      btnSelectHeader: qs('#btnSelectHeader'), btnSelectTarget: qs('#btnSelectTarget'),
+      btnSelectFixedHeader: qs('#btnSelectFixedHeader'), btnSelectHeaderRow: qs('#btnSelectHeaderRow'),
+      positionSettingItem: qs('#positionSettingItem'),
+      pdfCanvas: qs('#pdfCanvas'), canvasContainer: qs('#canvasContainer'), selectionOverlay: qs('#selectionOverlay'),
+      btnClearHeader: qs('#btnClearHeader'), extractedList: qs('#extractedList'), extractCount: qs('#extractCount'),
+      btnDownloadAll: qs('#btnDownloadAll'), btnPrevWork: qs('#btnPrevWork'), btnNextWork: qs('#btnNextWork'),
+      btnClearImages: qs('#btnClearImages'), btnResetAlls: document.querySelectorAll('.btn-reset-all'),
+      toast: qs('#toast'), toastMsg: qs('#toastMsg'),
+      btnSettingsToggle: qs('#btnSettingsToggle'), settingsPopover: qs('#settingsPopover'),
+      gridThreshold: qs('#gridThreshold'), thresholdValue: qs('#thresholdValue'),
+      minLineLen: qs('#minLineLen'), minLineLenValue: qs('#minLineLenValue')
+    };
+
+    // ===== Settings Popover Toggle =====
+    dom.btnSettingsToggle.addEventListener('click', function(e) {
+      e.stopPropagation();
+      dom.settingsPopover.classList.toggle('hidden');
+    });
+    document.addEventListener('click', function(e) {
+      if (!dom.settingsPopover.contains(e.target) && e.target !== dom.btnSettingsToggle) {
+        dom.settingsPopover.classList.add('hidden');
+      }
+    });
+
+    // ===== Toast =====
+    function showToast(msg, duration) {
+      if (!duration) duration = 2500;
+      dom.toastMsg.textContent = msg;
+      dom.toast.classList.add('show');
+      setTimeout(function() { dom.toast.classList.remove('show'); }, duration);
+    }
+
+    // ===== Steps UI =====
+    function showStep(n) {
+      [dom.step1, dom.step2, dom.step3].forEach(function(s, i) {
+        s.classList.toggle('hidden', i + 1 !== n);
+        setTimeout(() => s.style.opacity = (i + 1 === n) ? '1' : '0', 10);
+      });
+      [dom.st1, dom.st2, dom.st3].forEach(function(s, i) {
+        s.classList.toggle('active', i + 1 === n);
+        s.classList.toggle('completed', i + 1 < n);
+      });
+    }
+
+    // ===== Toggle Group Setup =====
+    function setupToggleGroup(containerId, stateKey, onChange) {
+      var container = qs('#' + containerId);
+      var btns = container.querySelectorAll('button');
+      btns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          btns.forEach(function(b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          state[stateKey] = btn.dataset.value;
+          if (onChange) onChange(state[stateKey]);
+        });
+      });
+    }
+
+    setupToggleGroup('headerPositionGroup', 'headerPosition');
+
+    // ===== Selection Mode =====
+    function applySelectionMode() {
+      var m = state.selectionMode;
+      var isSingle = m === 'single';
+      
+      dom.btnSelectFixedHeader.style.display = m === 'withHeader' ? 'inline-flex' : 'none';
+      dom.btnSelectHeader.style.display = !isSingle ? 'inline-flex' : 'none';
+      dom.btnSelectHeaderRow.style.display = m === 'withHeader' ? 'inline-flex' : 'none';
+      dom.btnSelectTarget.style.display = !isSingle ? 'inline-flex' : 'none';
+      
+      dom.positionSettingItem.style.display = !isSingle ? 'flex' : 'none';
+      
+      dom.btnSelectTarget.disabled = true;
+      dom.btnSelectHeaderRow.disabled = true;
+
+      // 見出しのみモードの時は、アイコンの塗りつぶしを左半分/右半分に書き換える
+      var pathHeader = document.getElementById('iconPathHeader');
+      var pathTarget = document.getElementById('iconPathTarget');
+      if (m === 'headerOnly') {
+        if(pathHeader) pathHeader.setAttribute('d', 'M12 3 H 5 A 2 2 0 0 0 3 5 V 19 A 2 2 0 0 0 5 21 H 12 Z');
+        if(pathTarget) pathTarget.setAttribute('d', 'M12 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 12 Z');
+      } else {
+        if(pathHeader) pathHeader.setAttribute('d', 'M12 21 H 5 A 2 2 0 0 1 3 19 V 12 H 12 Z');
+        if(pathTarget) pathTarget.setAttribute('d', 'M12 21 H 19 A 2 2 0 0 0 21 19 V 12 H 12 Z');
+      }
+    }
+    
+    setupToggleGroup('selectionModeGroup', 'selectionMode', function(val) {
+      state.headerRegion = null; state.headerCells = []; state.targetRegion = null; state.targetCells = [];
+      state.headerRect = null; state.headerImageData = null; state.headerRowRegion = null; state.headerRowCells = [];
+      state.headerRowImageData = null; state.fixedHeaderRegion = null; state.fixedHeaderImageData = null;
+      state.mode = state.selectionMode === 'withHeader' ? 'fixedHeader' : state.selectionMode === 'single' ? 'single' : 'header';
+      dom.btnClearHeader.disabled = true;
+      applySelectionMode(); updateModeButtons(); clearAllOverlays();
+      var msgs = { headerOnly: '見出しを選択してください', withHeader: '固定ヘッダーを選択してください', single: '抽出する範囲を選択してください' };
+      showToast(msgs[state.selectionMode]);
+    });
+
+    // ===== Select Method =====
+    setupToggleGroup('selectMethodGroup', 'selectMethod', function(val) {
+      if (state.mode === 'target' && state.selectMethod === 'manual') state.mode = 'manual';
+      else if (state.mode === 'manual' && state.selectMethod === 'auto') state.mode = 'target';
+      updateModeButtons();
+    });
+
+    // ===== Threshold sliders =====
+    dom.gridThreshold.addEventListener('input', function() { dom.thresholdValue.textContent = dom.gridThreshold.value; });
+    dom.minLineLen.addEventListener('input', function() { dom.minLineLenValue.textContent = dom.minLineLen.value; });
+
+    // ★ スライダーダブルクリックでデフォルト値に戻す ★
+    dom.gridThreshold.addEventListener('dblclick', function() {
+      dom.gridThreshold.value = 170;
+      dom.thresholdValue.textContent = 170;
+    });
+    dom.minLineLen.addEventListener('dblclick', function() {
+      dom.minLineLen.value = 100;
+      dom.minLineLenValue.textContent = 100;
+    });
+
+    function getCurrentListName() {
+      if (state.selectedPages.length === 0) return '';
+      var pageNum = state.selectedPages[state.currentWorkPage];
+      for (var i = 0; i < state.pages.length; i++) {
+        if (state.pages[i].pageNum === pageNum) return state.pages[i].drawingName || 'unknown';
+      }
+      return 'unknown';
+    }
+
+    function getNextSeqNum(listName) {
+      var count = 0;
+      for (var i = 0; i < state.extractedImages.length; i++) { if (state.extractedImages[i].listName === listName) count++; }
+      return count + 1;
+    }
+
+    function renumberImages() {
+      var counters = {};
+      for (var i = 0; i < state.extractedImages.length; i++) {
+        var ln = state.extractedImages[i].listName;
+        counters[ln] = (counters[ln] || 0) + 1;
+        state.extractedImages[i].name = ln + '_' + String(counters[ln]).padStart(3, '0');
+      }
+    }
+
+    // ===== GRID LINE DETECTION =====
+    function detectLines(region) {
+      var threshold = parseInt(dom.gridThreshold.value);
+      var minLen = parseInt(dom.minLineLen.value);
+      var cr = toCanvasCoords(region);
+      var rx = Math.round(cr.x), ry = Math.round(cr.y), rw = Math.round(cr.w), rh = Math.round(cr.h);
+      var autoMin = Math.floor(Math.min(rw, rh) * 0.3);
+      if (autoMin < minLen) minLen = Math.max(autoMin, 8);
+
+      var ctx = dom.pdfCanvas.getContext('2d');
+      var imgData = ctx.getImageData(rx, ry, rw, rh);
+      var d = imgData.data, w = rw, h = rh;
+
+      var dark = new Uint8Array(w * h);
+      for (var i = 0; i < w * h; i++) {
+        var r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
+        dark[i] = ((r + g + b) / 3) < threshold ? 1 : 0;
+      }
+
+      var hLines = [], vLines = [];
+      for (var y = 0; y < h; y++) {
+        var run = 0;
+        for (var x = 0; x < w; x++) {
+          if (dark[y * w + x]) run++; else { if (run >= minLen) { hLines.push(y); break; } run = 0; }
+        }
+        if (run >= minLen) hLines.push(y);
+      }
+      for (var x = 0; x < w; x++) {
+        var run = 0;
+        for (var y = 0; y < h; y++) {
+          if (dark[y * w + x]) run++; else { if (run >= minLen) { vLines.push(x); break; } run = 0; }
+        }
+        if (run >= minLen) vLines.push(x);
+      }
+
+      hLines = clusterLines(hLines, 5);
+      vLines = clusterLines(vLines, 5);
+
+      var oR = state.scale / _renderScale;
+      for (var i = 0; i < hLines.length; i++) hLines[i] = Math.round(hLines[i] * oR);
+      for (var i = 0; i < vLines.length; i++) vLines[i] = Math.round(vLines[i] * oR);
+      return { hLines: hLines, vLines: vLines, rx: Math.round(region.x), ry: Math.round(region.y), rw: Math.round(region.w), rh: Math.round(region.h) };
+    }
+
+    function clusterLines(lines, gap) {
+      if (lines.length === 0) return [];
+      lines.sort(function(a, b) { return a - b; });
+      var clusters = [], start = lines[0], sum = lines[0], count = 1;
+      for (var i = 1; i < lines.length; i++) {
+        if (lines[i] - lines[i - 1] <= gap) { sum += lines[i]; count++; }
+        else { clusters.push(Math.round(sum / count)); sum = lines[i]; count = 1; }
+      }
+      clusters.push(Math.round(sum / count));
+      return clusters;
+    }
+
+    function linesToCells(lineResult) {
+      var hLines = lineResult.hLines, vLines = lineResult.vLines, rx = lineResult.rx, ry = lineResult.ry;
+      if (hLines.length < 2 || vLines.length < 2) return [];
+      var cells = [];
+      for (var row = 0; row < hLines.length - 1; row++) {
+        for (var col = 0; col < vLines.length - 1; col++) {
+          var cellW = vLines[col + 1] - vLines[col], cellH = hLines[row + 1] - hLines[row];
+          if (cellW > 3 && cellH > 3) cells.push({ x: rx + vLines[col], y: ry + hLines[row], w: cellW, h: cellH, row: row, col: col });
+        }
+      }
+      return cells;
+    }
+
+    // ===== Drawing Name Extraction =====
+    async function extractDrawingName(pageNum) {
+      try {
+        var page = await state.pdfDoc.getPage(pageNum);
+        var tc = await page.getTextContent();
+        var items = tc.items;
+
+        var ti = [];
+        for (var i = 0; i < items.length; i++) {
+          var tr = items[i].transform, s = items[i].str;
+          if (s) ti.push({ str: s, x: tr[4], y: tr[5], w: items[i].width || 0 });
+        }
+
+        var labelItem = null, LABEL = '\u56f3\u9762\u540d\u79f0';
+        for (var i = 0; i < ti.length; i++) {
+          if (ti[i].str.replace(/[\s\u3000]/g, '').indexOf(LABEL) !== -1) { labelItem = ti[i]; break; }
+        }
+
+        if (!labelItem) {
+          for (var i = 0; i < ti.length; i++) {
+            if (ti[i].str.replace(/[\s\u3000]/g, '').indexOf('\u56f3\u9762') !== -1) {
+              for (var j = i + 1; j < Math.min(i + 6, ti.length); j++) {
+                if (ti[j].str.replace(/[\s\u3000]/g, '').indexOf('\u540d\u79f0') !== -1 && Math.abs(ti[j].y - ti[i].y) < 10) { labelItem = ti[i]; break; }
+              }
+              if (labelItem) break;
+            }
+          }
+        }
+
+        if (!labelItem) return null;
+
+        var labelY = labelItem.y, labelRight = labelItem.x + labelItem.w;
+        var candidates = [];
+        for (var i = 0; i < ti.length; i++) {
+          var s = ti[i].str.trim(), sc = s.replace(/[\s\u3000]/g, '');
+          if (!s || s.length < 2 || sc.indexOf(LABEL) !== -1 || sc.indexOf('\u56f3\u9762\u756a\u53f7') !== -1 || sc === '\u8a18\u4e8b' || sc === '\u8a02\u6b63' || sc === 'SCALE' || /^[\d.\-\/]+$/.test(sc)) continue;
+          if (Math.abs(ti[i].y - labelY) < 15 && ti[i].x >= labelItem.x) candidates.push({ str: s, dist: Math.abs(ti[i].x - labelRight) });
+        }
+        candidates.sort(function(a, b) { return a.dist - b.dist; });
+
+        var KEYWORDS = /\u30ea\u30b9\u30c8|\u4f0f\u56f3|\u8a73\u7d30|\u8ef8\u7d44|\u65ad\u9762|\u914d\u7b4b|\u5c55\u958b|\u914d\u7f6e|\u7acb\u9762/;
+        for (var i = 0; i < candidates.length; i++) { if (KEYWORDS.test(candidates[i].str)) return candidates[i].str; }
+        if (candidates.length > 0) return candidates[0].str;
+
+        var fullText = '';
+        for (var i = 0; i < ti.length; i++) fullText += ti[i].str;
+        var fbMatch = fullText.replace(/[\s\u3000]/g, '').match(new RegExp(LABEL + '(.{2,10}?)(?:\u8a18\u4e8b|\u8a2d\u8a08|\u56f3\u9762\u756a\u53f7|SCALE|$)'));
+        return fbMatch ? fbMatch[1].trim() : null;
+      } catch (err) {
+        console.warn('extractDrawingName error on page ' + pageNum, err);
+        return null;
+      }
+    }
+
+    function combineImages(hdrCanvas, tgtCanvas, position) {
+      var hw = hdrCanvas.width, hh = hdrCanvas.height, tw = tgtCanvas.width, th = tgtCanvas.height, cw, ch, hx, hy, tx, ty;
+      switch (position) {
+        case 'top': cw = Math.max(hw, tw); ch = hh + th; hx = (cw - hw) / 2; hy = 0; tx = (cw - tw) / 2; ty = hh; break;
+        case 'bottom': cw = Math.max(hw, tw); ch = th + hh; tx = (cw - tw) / 2; ty = 0; hx = (cw - hw) / 2; hy = th; break;
+        case 'right': cw = tw + hw; ch = Math.max(hh, th); tx = 0; ty = (ch - th) / 2; hx = tw; hy = (ch - hh) / 2; break;
+        case 'left': default: cw = hw + tw; ch = Math.max(hh, th); hx = 0; hy = (ch - hh) / 2; tx = hw; ty = (ch - th) / 2; break;
+      }
+      var combined = document.createElement('canvas'); combined.width = cw; combined.height = ch;
+      var ctx = combined.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
+      ctx.drawImage(hdrCanvas, hx, hy); ctx.drawImage(tgtCanvas, tx, ty);
+      return combined;
+    }
+
+    function cropCell(cell) {
+      var cc = toCanvasCoords(cell), c = document.createElement('canvas');
+      c.width = Math.round(cc.w); c.height = Math.round(cc.h);
+      c.getContext('2d').drawImage(dom.pdfCanvas, cc.x, cc.y, cc.w, cc.h, 0, 0, c.width, c.height);
+      return c;
+    }
+
+    // ===== PDF Loading =====
+    function handleFile(file) {
+      if (!file || file.type !== 'application/pdf') return showToast('PDFファイルを選択してください');
+      var reader = new FileReader();
+      reader.onload = async function(e) {
+        try {
+          state.pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
+          showStep(2); await initPages();
+        } catch (err) { showToast('PDFの読み込みに失敗しました'); }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+    dom.pdfInput.addEventListener('change', function(e) { handleFile(e.target.files[0]); });
+    dom.dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dom.dropZone.classList.add('dragover'); });
+    dom.dropZone.addEventListener('dragleave', function() { dom.dropZone.classList.remove('dragover'); });
+    dom.dropZone.addEventListener('drop', function(e) { e.preventDefault(); dom.dropZone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
+
+    // ===== Step 2: Page Thumbnails =====
+    async function initPages() {
+      state.pages = []; state.lastClickedIndex = -1; dom.pageThumbnails.innerHTML = ''; dom.loadingInfo.classList.remove('hidden');
+      try {
+        for (var i = 1; i <= state.pdfDoc.numPages; i++) {
+          var name = await extractDrawingName(i);
+          state.pages.push({ pageNum: i, selected: name ? name.indexOf('\u30ea\u30b9\u30c8') !== -1 : false, drawingName: name || '' });
+        }
+      } catch (err) {
+        console.error("Pages init error:", err);
+      } finally {
+        dom.loadingInfo.classList.add('hidden');
+      }
+      
+      await renderThumbnails(); updatePageControls();
+      var listCount = state.pages.filter(function(p) { return p.selected; }).length;
+      if (listCount > 0) showToast('「リスト」を含む ' + listCount + ' ページを自動選択しました');
+    }
+
+    async function renderThumbnails() {
+      dom.pageThumbnails.innerHTML = '';
+      for (var idx = 0; idx < state.pages.length; idx++) {
+        var p = state.pages[idx], page = await state.pdfDoc.getPage(p.pageNum), vp = page.getViewport({ scale: 0.3 });
+        var div = document.createElement('div'); div.className = 'page-thumb' + (p.selected ? ' selected' : ''); div.dataset.index = idx;
+        
+        var imgContainer = document.createElement('div');
+        imgContainer.className = 'page-thumb-image-container';
+        
+        var canvas = document.createElement('canvas'); canvas.width = vp.width; canvas.height = vp.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+        
+        imgContainer.appendChild(canvas);
+        
+        var info = document.createElement('div'); info.className = 'page-thumb-info';
+        info.innerHTML = '<div class="page-thumb-label">P.' + p.pageNum + '</div><div class="page-thumb-name" title="' + (p.drawingName||'名称なし') + '">' + (p.drawingName||'-') + '</div>';
+        
+        div.appendChild(imgContainer); 
+        div.appendChild(info);
+        (function(i) { div.addEventListener('click', function(e) { handleThumbClick(i, e); }); })(idx);
+        dom.pageThumbnails.appendChild(div);
+      }
+    }
+
+    function handleThumbClick(index, event) {
+      if (event.shiftKey && state.lastClickedIndex >= 0) {
+        var start = Math.min(state.lastClickedIndex, index), end = Math.max(state.lastClickedIndex, index);
+        for (var i = start; i <= end; i++) state.pages[i].selected = true;
+      } else state.pages[index].selected = !state.pages[index].selected;
+      state.lastClickedIndex = index; updateThumbnailStyles(); updatePageControls();
+    }
+
+    function updateThumbnailStyles() {
+      for (var i = 0; i < state.pages.length; i++) {
+        var el = dom.pageThumbnails.querySelector('[data-index="' + i + '"]');
+        if (el) el.classList.toggle('selected', state.pages[i].selected);
+      }
+    }
+
+    dom.btnSelectAll.addEventListener('click', function() { state.pages.forEach(function(p) { p.selected = true; }); updateThumbnailStyles(); updatePageControls(); });
+    dom.btnDeselectAll.addEventListener('click', function() { state.pages.forEach(function(p) { p.selected = false; }); updateThumbnailStyles(); updatePageControls(); });
+
+    function updatePageControls() {
+      var selected = state.pages.filter(function(p) { return p.selected; });
+      dom.pageIndicator.textContent = selected.length + ' / ' + state.pages.length + ' 選択中';
+      dom.goToStep3.disabled = selected.length === 0;
+    }
+
+    dom.goToStep3.addEventListener('click', function() {
+      state.selectedPages = state.pages.filter(function(p) { return p.selected; }).map(function(p) { return p.pageNum; });
+      state.currentWorkPage = 0; resetWorkState(); renderWorkPage(); showStep(3);
+    });
+
+    function resetPageSelection() {
+      state.headerRegion = null; state.headerCells = []; state.targetRegion = null; state.targetCells = [];
+      state.headerRect = null; state.headerImageData = null; state.headerRowRegion = null; state.headerRowCells = [];
+      state.headerRowImageData = null; state.fixedHeaderRegion = null; state.fixedHeaderImageData = null; state.historyRegions = [];
+      dom.btnClearHeader.disabled = true; dom.btnSelectTarget.disabled = true; dom.btnSelectHeaderRow.disabled = true;
+      state.mode = state.selectionMode === 'withHeader' ? 'fixedHeader' : state.selectionMode === 'single' ? 'single' : 'header';
+      applySelectionMode(); updateModeButtons(); clearAllOverlays();
+    }
+    function resetWorkState() { state.extractedImages = []; state.scale = 2; if (dom.canvasContainer) { dom.canvasContainer.scrollLeft = 0; dom.canvasContainer.scrollTop = 0; } resetPageSelection(); renderExtractedList(); }
+
+    // ===== テキストがはみ出す場合にフォントサイズを下げる処理 =====
+    function adjustListNameSize() {
+      var el = dom.listNameDisplay;
+      el.style.fontSize = '1.1rem'; 
+      
+      requestAnimationFrame(function() {
+        var size = 1.1;
+        while (el.scrollWidth > el.clientWidth && size > 0.6) {
+          size -= 0.05;
+          el.style.fontSize = size + 'rem';
+        }
+      });
+    }
+
+    // ===== Step 3: Work Area =====
+    async function renderWorkPage() {
+      var pageNum = state.selectedPages[state.currentWorkPage];
+      
+      // リスト名称のセットとサイズ自動調整
+      dom.listNameDisplay.textContent = getCurrentListName();
+      adjustListNameSize();
+      
+      // ◯ / ◯ 表記に変更
+      dom.currentPageLabel.textContent = (state.currentWorkPage + 1) + ' / ' + state.selectedPages.length;
+      
+      var page = await state.pdfDoc.getPage(pageNum); _renderScale = 2;
+      var vp = page.getViewport({ scale: _renderScale });
+      dom.pdfCanvas.width = vp.width; dom.pdfCanvas.height = vp.height;
+      await page.render({ canvasContext: dom.pdfCanvas.getContext('2d'), viewport: vp }).promise;
+      
+      state.scale = (dom.canvasContainer.clientWidth - 4) / (vp.width / _renderScale);
+      applyZoomTransform(); clearAllOverlays(); redrawState();
+      dom.btnPrevWork.disabled = state.currentWorkPage === 0; dom.btnNextWork.disabled = state.currentWorkPage >= state.selectedPages.length - 1;
+    }
+
+    function clearAllOverlays() { dom.selectionOverlay.querySelectorAll('.selection-rect, .grid-cell-rect').forEach(function(r) { r.remove(); }); }
+
+    function redrawState() {
+      state.historyRegions.forEach(function(hr) {
+        var el = document.createElement('div');
+        el.className = 'selection-rect history-rect ' + (hr.type === 'header' ? 'header-sel' : hr.type === 'fixedHeader' ? 'fixed-header-sel' : hr.type === 'headerRow' ? 'header-row-sel' : 'target-sel') + ' confirmed';
+        el.style.left = hr.r.x + 'px'; el.style.top = hr.r.y + 'px'; el.style.width = hr.r.w + 'px'; el.style.height = hr.r.h + 'px';
+        dom.selectionOverlay.appendChild(el);
+      });
+      function upsert(region, cls, tag) {
+        var el = dom.selectionOverlay.querySelector('[data-region="' + tag + '"]');
+        if (!region) { if (el) el.remove(); return; }
+        if (!el) { el = document.createElement('div'); el.className = 'selection-rect ' + cls; el.dataset.region = tag; dom.selectionOverlay.appendChild(el); }
+        el.style.left = region.x + 'px'; el.style.top = region.y + 'px'; el.style.width = region.w + 'px'; el.style.height = region.h + 'px';
+      }
+      upsert(state.headerRegion, 'header-sel confirmed', 'header');
+      upsert(state.targetRegion, 'target-sel confirmed', 'target');
+      upsert(state.fixedHeaderRegion, 'fixed-header-sel confirmed', 'fixedHeader');
+      upsert(state.headerRowRegion, 'header-row-sel confirmed', 'headerRow');
+    }
+
+    function getOverlayCoords(e) { var rect = dom.selectionOverlay.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; }
+    function calcRect(a, b) { return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) }; }
+    function drawRect(r, cls) { var el = document.createElement('div'); el.className = 'selection-rect ' + cls; el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; dom.selectionOverlay.appendChild(el); }
+
+    dom.selectionOverlay.addEventListener('mousedown', function(e) {
+      if (e.button !== 0) return;
+      state.isDragging = true; state.dragStart = getOverlayCoords(e); state.dragCurrent = { x: state.dragStart.x, y: state.dragStart.y };
+      dom.selectionOverlay.querySelectorAll('.selection-rect:not(.confirmed)').forEach(function(r) { r.remove(); });
+    });
+    dom.selectionOverlay.addEventListener('mousemove', function(e) {
+      if (!state.isDragging) return; state.dragCurrent = getOverlayCoords(e);
+      dom.selectionOverlay.querySelectorAll('.selection-rect:not(.confirmed)').forEach(function(r) { r.remove(); });
+      var r = calcRect(state.dragStart, state.dragCurrent);
+      drawRect(r, state.mode === 'fixedHeader' ? 'fixed-header-sel' : state.mode === 'headerRow' ? 'header-row-sel' : state.mode === 'header' ? 'header-sel' : 'target-sel');
+    });
+    dom.selectionOverlay.addEventListener('mouseup', function(e) {
+      if (!state.isDragging) return; state.isDragging = false; state.dragCurrent = getOverlayCoords(e);
+      var r = calcRect(state.dragStart, state.dragCurrent); if (r.w < 5 || r.h < 5) return;
+      if (state.mode === 'header') confirmHeaderRegion(r);
+      else if (state.mode === 'fixedHeader') confirmFixedHeaderRegion(r);
+      else if (state.mode === 'headerRow') confirmHeaderRowRegion(r);
+      else if (state.mode === 'target') confirmTargetRegion(r);
+      else if (state.mode === 'manual') confirmManualTarget(r);
+      else if (state.mode === 'single') confirmSingleTarget(r);
+    });
+
+    function cellsBoundingBox(cells) {
+      var minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+      for (var i = 0; i < cells.length; i++) {
+        var c = cells[i];
+        if (c.x < minX) minX = c.x; if (c.y < minY) minY = c.y; if (c.x + c.w > maxX) maxX = c.x + c.w; if (c.y + c.h > maxY) maxY = c.y + c.h;
+      }
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
+
+    function confirmHeaderRegion(r) {
+      if (state.headerRegion) state.historyRegions.push({ type: 'header', r: state.headerRegion });
+      if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
+      state.headerRegion = r; state.headerCells = []; state.targetRegion = null; state.targetCells = [];
+      if (state.selectMethod === 'auto') {
+        var cells = linesToCells(detectLines(r)); state.headerCells = cells;
+        if (cells.length > 0) r = cellsBoundingBox(cells);
+      }
+      state.headerRegion = r; clearAllOverlays(); redrawState();
+
+      var tc = document.createElement('canvas'), cr = toCanvasCoords(r);
+      tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
+      tc.getContext('2d').drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      state.headerImageData = tc; state.headerRect = r;
+
+      dom.btnClearHeader.disabled = false; dom.btnSelectTarget.disabled = false; dom.btnSelectHeaderRow.disabled = false; dom.btnSelectFixedHeader.disabled = false;
+      
+      state.mode = state.selectionMode === 'withHeader' ? 'headerRow' : state.selectMethod === 'manual' ? 'manual' : 'target';
+      updateModeButtons();
+      showToast(state.selectionMode === 'withHeader' ? '見出し確定。ヘッダーを選択してください' : state.selectMethod === 'manual' ? '見出し確定。対象を手動選択してください' : '見出し確定。対象範囲を選択してください');
+    }
+
+    function confirmHeaderRowRegion(r) {
+      if (state.headerRowRegion) state.historyRegions.push({ type: 'headerRow', r: state.headerRowRegion });
+      if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
+      state.targetRegion = null; state.targetCells = [];
+      if (state.selectMethod === 'auto') {
+        var cells = linesToCells(detectLines(r)); state.headerRowCells = cells;
+        if (cells.length > 0) r = cellsBoundingBox(cells);
+      }
+      state.headerRowRegion = r;
+      var tc = document.createElement('canvas'), cr = toCanvasCoords(r);
+      tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
+      tc.getContext('2d').drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      state.headerRowImageData = tc; clearAllOverlays(); redrawState();
+      state.mode = state.selectMethod === 'manual' ? 'manual' : 'target'; updateModeButtons();
+      showToast(state.selectMethod === 'manual' ? 'ヘッダー確定。対象を手動選択' : 'ヘッダー確定。対象範囲を選択');
+    }
+
+    dom.btnClearHeader.addEventListener('click', function() { resetPageSelection(); });
+
+    function renderExtractedList() {
+      dom.extractedList.innerHTML = ''; dom.extractCount.textContent = '(' + state.extractedImages.length + ')';
+      dom.btnDownloadAll.disabled = state.extractedImages.length === 0;
+      dom.btnClearImages.disabled = state.extractedImages.length === 0; 
+      
+      state.extractedImages.forEach(function(img, i) {
+        var item = document.createElement('div'); item.className = 'extracted-item';
+        item.innerHTML = '<img src="' + img.dataUrl + '"><div class="extracted-item-label">' + img.name + '.png</div><button class="del-btn" title="削除"><span class="material-symbols-rounded">close</span></button>';
+        item.querySelector('img').addEventListener('click', function() { showPreviewModal(i); });
+        item.querySelector('.del-btn').addEventListener('click', function() { state.extractedImages.splice(i, 1); renumberImages(); renderExtractedList(); });
+        dom.extractedList.appendChild(item);
+      });
+      // リストが更新されたら一番下まで自動スクロールする
+      setTimeout(function() {
+        if (dom.extractedList) dom.extractedList.scrollTop = dom.extractedList.scrollHeight;
+      }, 10);
+    }
+    
+    // 一括クリアボタンのイベントリスナー (confirmダイアログを削除)
+    dom.btnClearImages.addEventListener('click', function() {
+      state.extractedImages = [];
+      renderExtractedList();
+      showToast('画像をすべてクリアしました');
+    });
+
+    function updateModeButtons() {
+      dom.btnSelectHeader.classList.toggle('active', state.mode === 'header');
+      dom.btnSelectTarget.classList.toggle('active', state.mode === 'target' || state.mode === 'manual');
+      dom.btnSelectHeaderRow.classList.toggle('active', state.mode === 'headerRow');
+      dom.btnSelectFixedHeader.classList.toggle('active', state.mode === 'fixedHeader');
+
+      if (state.selectMethod === 'manual') {
+        dom.btnSettingsToggle.disabled = true;
+      } else {
+        dom.btnSettingsToggle.disabled = false;
+      }
+    }
+
+    dom.btnSelectHeader.addEventListener('click', function() { state.mode = 'header'; updateModeButtons(); });
+    dom.btnSelectTarget.addEventListener('click', function() { if (!state.headerRegion && !state.headerRect && state.selectionMode !== 'single') return showToast('先に見出しを選択してください'); state.mode = state.selectMethod === 'manual' ? 'manual' : 'target'; updateModeButtons(); });
+    dom.btnSelectHeaderRow.addEventListener('click', function() { if (!state.headerRegion && !state.headerRect) return showToast('先に見出しを選択してください'); state.mode = 'headerRow'; updateModeButtons(); });
+
+    dom.btnPrevWork.addEventListener('click', function() { if (state.currentWorkPage > 0) { state.currentWorkPage--; dom.canvasContainer.scrollLeft = 0; dom.canvasContainer.scrollTop = 0; resetPageSelection(); renderWorkPage(); } });
+    dom.btnNextWork.addEventListener('click', function() { if (state.currentWorkPage < state.selectedPages.length - 1) { state.currentWorkPage++; dom.canvasContainer.scrollLeft = 0; dom.canvasContainer.scrollTop = 0; resetPageSelection(); renderWorkPage(); } });
+
+    function getMinScale() { return (!state.pdfDoc || !dom.pdfCanvas.width) ? 0.5 : Math.max((dom.canvasContainer.clientWidth - 4) / (dom.pdfCanvas.width / _renderScale), 0.3); }
+
+    function rescaleRegions(ratio) {
+      var sr = function(r) { return r ? { x: r.x * ratio, y: r.y * ratio, w: r.w * ratio, h: r.h * ratio } : null; };
+      var sc = function(cells) { return cells.map(function(c) { return { x: c.x * ratio, y: c.y * ratio, w: c.w * ratio, h: c.h * ratio, row: c.row, col: c.col }; }); };
+      state.headerRegion = sr(state.headerRegion); state.targetRegion = sr(state.targetRegion); state.headerRect = sr(state.headerRect);
+      state.fixedHeaderRegion = sr(state.fixedHeaderRegion); state.headerRowRegion = sr(state.headerRowRegion);
+      state.headerCells = sc(state.headerCells); state.targetCells = sc(state.targetCells); state.headerRowCells = sc(state.headerRowCells);
+      state.historyRegions = state.historyRegions.map(function(hr) { return { type: hr.type, r: sr(hr.r) }; });
+    }
+    
+    function toCanvasCoords(r) { var k = _renderScale / state.scale; return { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k }; }
+    var _renderScale = 2;
+    
+    function applyZoomTransform() {
+      var r = state.scale / _renderScale;
+      dom.pdfCanvas.style.transformOrigin = '0 0'; dom.pdfCanvas.style.transform = r === 1 ? '' : 'scale(' + r + ')';
+      dom.selectionOverlay.style.width = (dom.pdfCanvas.width * r) + 'px'; dom.selectionOverlay.style.height = (dom.pdfCanvas.height * r) + 'px';
+      clearAllOverlays(); redrawState();
+    }
+
+    dom.canvasContainer.addEventListener('wheel', function(e) {
+      if (!e.ctrlKey && !e.metaKey) return; e.preventDefault();
+      var old = state.scale; state.scale = Math.min(Math.max(state.scale + (e.deltaY > 0 ? -0.15 : 0.15), getMinScale()), 4);
+      if (state.scale === old) return;
+      rescaleRegions(state.scale / old);
+      var cRect = dom.canvasContainer.getBoundingClientRect(), zr = state.scale / old, mx = e.clientX - cRect.left, my = e.clientY - cRect.top;
+      dom.canvasContainer.scrollLeft = (dom.canvasContainer.scrollLeft + mx) * zr - mx; dom.canvasContainer.scrollTop = (dom.canvasContainer.scrollTop + my) * zr - my;
+      applyZoomTransform();
+    }, { passive: false });
+
+    var _panning = false, _panStart = { x: 0, y: 0 };
+    dom.selectionOverlay.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+    dom.selectionOverlay.addEventListener('mousedown', function(e) { if (e.button === 2) { e.preventDefault(); _panning = true; _panStart = { x: e.clientX, y: e.clientY }; dom.selectionOverlay.style.cursor = 'grabbing'; } });
+    window.addEventListener('mousemove', function(e) { if (_panning) { dom.canvasContainer.scrollLeft -= e.clientX - _panStart.x; dom.canvasContainer.scrollTop -= e.clientY - _panStart.y; _panStart = { x: e.clientX, y: e.clientY }; } });
+    window.addEventListener('mouseup', function(e) { if (_panning) { _panning = false; dom.selectionOverlay.style.cursor = ''; } });
+
+    function confirmFixedHeaderRegion(r) {
+      if (state.selectMethod === 'auto') { var cells = linesToCells(detectLines(r)); if (cells.length > 0) r = cellsBoundingBox(cells); }
+      if (state.fixedHeaderRegion) state.historyRegions.push({ type: 'fixedHeader', r: state.fixedHeaderRegion });
+      state.fixedHeaderRegion = r;
+      var tc = document.createElement('canvas'), cr = toCanvasCoords(r); tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
+      tc.getContext('2d').drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      state.fixedHeaderImageData = tc; clearAllOverlays(); redrawState(); state.mode = 'header'; updateModeButtons(); showToast('固定ヘッダー確定。見出しを選択してください');
+    }
+    dom.btnSelectFixedHeader.addEventListener('click', function() { state.mode = 'fixedHeader'; updateModeButtons(); });
+
+    var combineWithHeaderRow = function(hCol, hRow, tgt, pos, cnr) {
+      var cw, ch, combined = document.createElement('canvas');
+      if (pos === 'left' || pos === 'right') { cw = hCol.width + tgt.width; ch = hRow.height + tgt.height; }
+      else { cw = Math.max(hRow.width, tgt.width); ch = hCol.height + hRow.height + tgt.height; }
+      combined.width = cw; combined.height = ch;
+      var ctx = combined.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
+      if (pos === 'left') {
+        if (cnr) ctx.drawImage(cnr, 0, 0, hCol.width, hRow.height);
+        ctx.drawImage(hRow, hCol.width, 0); ctx.drawImage(hCol, 0, hRow.height); ctx.drawImage(tgt, hCol.width, hRow.height);
+      } else if (pos === 'right') {
+        if (cnr) ctx.drawImage(cnr, tgt.width, 0, hCol.width, hRow.height);
+        ctx.drawImage(hRow, 0, 0); ctx.drawImage(tgt, 0, hRow.height); ctx.drawImage(hCol, tgt.width, hRow.height);
+      } else if (pos === 'top') {
+        if (cnr) ctx.drawImage(cnr, 0, 0); ctx.drawImage(hCol, 0, 0); ctx.drawImage(hRow, 0, hCol.height); ctx.drawImage(tgt, 0, hCol.height + hRow.height);
+      } else {
+        if (cnr) ctx.drawImage(cnr, 0, 0); ctx.drawImage(hRow, 0, 0); ctx.drawImage(tgt, 0, hRow.height); ctx.drawImage(hCol, 0, hRow.height + tgt.height);
+      }
+      return combined;
+    };
+
+    var confirmTargetRegion = function(r) {
+      if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
+      
+      // 自動なら罫線を検出してスナップ
+      if (state.selectMethod === 'auto') {
+        var cells = linesToCells(detectLines(r)); state.targetCells = cells;
+        if (cells.length > 0) r = cellsBoundingBox(cells);
+      }
+      
+      state.targetRegion = r; 
+      var tc = document.createElement('canvas'), cr = toCanvasCoords(r); tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
+      tc.getContext('2d').drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      clearAllOverlays(); redrawState();
+      var hdr = state.headerImageData || cropCell(state.headerRegion), combined = state.headerRowImageData ? combineWithHeaderRow(hdr, state.headerRowImageData, tc, state.headerPosition, state.fixedHeaderImageData) : combineImages(hdr, tc, state.headerPosition);
+      var ln = getCurrentListName(), name = ln + '_' + String(getNextSeqNum(ln)).padStart(3, '0');
+      state.extractedImages.push({ name: name, listName: ln, dataUrl: combined.toDataURL('image/png') });
+      renderExtractedList(); if (state.selectionMode === 'withHeader') { state.mode = 'headerRow'; updateModeButtons(); }
+      showToast(name + ' を抽出しました');
+    };
+
+    var confirmManualTarget = function(r) {
+      if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
+      state.targetRegion = r;
+      var tc = document.createElement('canvas'), cr = toCanvasCoords(r); tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
+      tc.getContext('2d').drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      var hdr = state.headerImageData || cropCell(state.headerRegion), combined = state.headerRowImageData ? combineWithHeaderRow(hdr, state.headerRowImageData, tc, state.headerPosition, state.fixedHeaderImageData) : combineImages(hdr, tc, state.headerPosition);
+      var ln = getCurrentListName(), name = ln + '_' + String(getNextSeqNum(ln)).padStart(3, '0');
+      state.extractedImages.push({ name: name, listName: ln, dataUrl: combined.toDataURL('image/png') });
+      renderExtractedList(); clearAllOverlays(); redrawState(); showToast(name + ' を抽出しました');
+    };
+
+    var confirmSingleTarget = function(r) {
+      if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
+      
+      // 単一モードでも「自動」なら罫線検出でスナップする
+      if (state.selectMethod === 'auto') {
+        var cells = linesToCells(detectLines(r));
+        if (cells.length > 0) r = cellsBoundingBox(cells);
+      }
+      
+      state.targetRegion = r;
+      var tc = document.createElement('canvas'), cr = toCanvasCoords(r); tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
+      tc.getContext('2d').drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      var ln = getCurrentListName(), name = ln + '_' + String(getNextSeqNum(ln)).padStart(3, '0');
+      state.extractedImages.push({ name: name, listName: ln, dataUrl: tc.toDataURL('image/png') });
+      renderExtractedList(); clearAllOverlays(); redrawState(); 
+      dom.btnClearHeader.disabled = false; // 単一モードでもクリアボタンを有効化
+      showToast(name + ' を抽出しました');
+    };
+
+    function showPreviewModal(idx) {
+      var img = state.extractedImages[idx]; if (!img) return;
+      var modal = document.createElement('div'); modal.className = 'preview-modal';
+      modal.innerHTML = '<img src="' + img.dataUrl + '"><div class="preview-modal-name">' + img.name + '.png</div>';
+      modal.addEventListener('click', function() { document.body.removeChild(modal); });
+      document.addEventListener('keydown', function onKey(e) { if (e.key === 'Escape') { if (modal.parentNode) document.body.removeChild(modal); document.removeEventListener('keydown', onKey); } });
+      document.body.appendChild(modal);
+    }
+
+    // 両方のリセットボタンにイベントを紐付ける
+    dom.btnResetAlls.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        state.pdfDoc = null; state.pages = []; state.selectedPages = []; state.currentWorkPage = 0; state.scale = 2;
+        resetPageSelection(); state.extractedImages = []; renderExtractedList();
+        
+        // ボタン設定群も初期状態に戻す
+        state.selectionMode = 'headerOnly'; state.selectMethod = 'auto'; state.headerPosition = 'left';
+        qs('#selectionModeGroup').querySelectorAll('button').forEach(function(b) { b.classList.toggle('active', b.dataset.value === 'headerOnly'); });
+        qs('#selectMethodGroup').querySelectorAll('button').forEach(function(b) { b.classList.toggle('active', b.dataset.value === 'auto'); });
+        qs('#headerPositionGroup').querySelectorAll('button').forEach(function(b) { b.classList.toggle('active', b.dataset.value === 'left'); });
+        
+        dom.pdfInput.value = ''; 
+        dom.pageThumbnails.innerHTML = ''; dom.btnDownloadAll.disabled = true;
+        applySelectionMode(); showStep(1); showToast('リセットしました');
+      });
+    });
+
+    dom.btnDownloadAll.onclick = function() {
+      if (state.extractedImages.length === 0) return;
+      if (state.extractedImages.length === 1) {
+        var a = document.createElement('a'); a.href = state.extractedImages[0].dataUrl; a.download = state.extractedImages[0].name + '.png'; document.body.appendChild(a); a.click(); document.body.removeChild(a); return;
+      }
+      showToast('ZIPファイルを作成中...');
+      var zip = new JSZip();
+      for (var i = 0; i < state.extractedImages.length; i++) zip.file(state.extractedImages[i].name + '.png', state.extractedImages[i].dataUrl.split(',')[1], { base64: true });
+      zip.generateAsync({type: 'base64'}).then(function(b64) {
+        var a = document.createElement('a'); a.href = 'data:application/zip;base64,' + b64; a.download = '抽出画像.zip'; document.body.appendChild(a); a.click(); setTimeout(function() { document.body.removeChild(a); }, 500); showToast('ダウンロード完了');
+      }).catch(function(err) { showToast('ZIP作成失敗: ' + err.message); });
+    };
+  </script>
+</body>
+</html>
