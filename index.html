@@ -895,7 +895,8 @@
       // （ただし、選択した領域自体よりも線長が長くなってしまうと何も検出できなくなるため、そこだけ上限をかけます）
       minLen = Math.min(minLen, Math.max(rw, rh));
 
-      var ctx = dom.pdfCanvas.getContext('2d');
+      // willReadFrequently を追加して警告を解消
+      var ctx = dom.pdfCanvas.getContext('2d', { willReadFrequently: true });
       var imgData = ctx.getImageData(rx, ry, rw, rh);
       var d = imgData.data, w = rw, h = rh;
 
@@ -1018,7 +1019,7 @@
         case 'left': default: cw = hw + tw; ch = Math.max(hh, th); hx = 0; hy = (ch - hh) / 2; tx = hw; ty = (ch - th) / 2; break;
       }
       var combined = document.createElement('canvas'); combined.width = cw; combined.height = ch;
-      var ctx = combined.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
+      var ctx = combined.getContext('2d', { willReadFrequently: true }); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
       ctx.drawImage(hdrCanvas, hx, hy); ctx.drawImage(tgtCanvas, tx, ty);
       return combined;
     }
@@ -1026,7 +1027,7 @@
     function cropCell(cell) {
       var cc = toCanvasCoords(cell), c = document.createElement('canvas');
       c.width = Math.round(cc.w); c.height = Math.round(cc.h);
-      c.getContext('2d').drawImage(dom.pdfCanvas, cc.x, cc.y, cc.w, cc.h, 0, 0, c.width, c.height);
+      c.getContext('2d', { willReadFrequently: true }).drawImage(dom.pdfCanvas, cc.x, cc.y, cc.w, cc.h, 0, 0, c.width, c.height);
       return c;
     }
 
@@ -1076,7 +1077,7 @@
         imgContainer.className = 'page-thumb-image-container';
         
         var canvas = document.createElement('canvas'); canvas.width = vp.width; canvas.height = vp.height;
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+        await page.render({ canvasContext: canvas.getContext('2d', { willReadFrequently: true }), viewport: vp }).promise;
         
         imgContainer.appendChild(canvas);
         
@@ -1157,7 +1158,7 @@
       var page = await state.pdfDoc.getPage(pageNum); _renderScale = 2;
       var vp = page.getViewport({ scale: _renderScale });
       dom.pdfCanvas.width = vp.width; dom.pdfCanvas.height = vp.height;
-      await page.render({ canvasContext: dom.pdfCanvas.getContext('2d'), viewport: vp }).promise;
+      await page.render({ canvasContext: dom.pdfCanvas.getContext('2d', { willReadFrequently: true }), viewport: vp }).promise;
       
       state.scale = (dom.canvasContainer.clientWidth - 4) / (vp.width / _renderScale);
       applyZoomTransform(); clearAllOverlays(); redrawState();
@@ -1232,7 +1233,7 @@
 
       var tc = document.createElement('canvas'), cr = toCanvasCoords(r);
       tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
-      tc.getContext('2d').drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      tc.getContext('2d', { willReadFrequently: true }).drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
       state.headerImageData = tc; state.headerRect = r;
 
       dom.btnClearHeader.disabled = false; dom.btnSelectTarget.disabled = false; dom.btnSelectHeaderRow.disabled = false; dom.btnSelectFixedHeader.disabled = false;
@@ -1253,7 +1254,7 @@
       state.headerRowRegion = r;
       var tc = document.createElement('canvas'), cr = toCanvasCoords(r);
       tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
-      tc.getContext('2d').drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      tc.getContext('2d', { willReadFrequently: true }).drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
       state.headerRowImageData = tc; clearAllOverlays(); redrawState();
       state.mode = state.selectMethod === 'manual' ? 'manual' : 'target'; updateModeButtons();
       showToast(state.selectMethod === 'manual' ? 'ヘッダー確定。対象を手動選択' : 'ヘッダー確定。対象範囲を選択');
@@ -1348,7 +1349,7 @@
       if (state.fixedHeaderRegion) state.historyRegions.push({ type: 'fixedHeader', r: state.fixedHeaderRegion });
       state.fixedHeaderRegion = r;
       var tc = document.createElement('canvas'), cr = toCanvasCoords(r); tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
-      tc.getContext('2d').drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      tc.getContext('2d', { willReadFrequently: true }).drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
       state.fixedHeaderImageData = tc; clearAllOverlays(); redrawState(); state.mode = 'header'; updateModeButtons(); showToast('固定ヘッダー確定。見出しを選択してください');
     }
     dom.btnSelectFixedHeader.addEventListener('click', function() { state.mode = 'fixedHeader'; updateModeButtons(); });
@@ -1358,7 +1359,7 @@
       if (pos === 'left' || pos === 'right') { cw = hCol.width + tgt.width; ch = hRow.height + tgt.height; }
       else { cw = Math.max(hRow.width, tgt.width); ch = hCol.height + hRow.height + tgt.height; }
       combined.width = cw; combined.height = ch;
-      var ctx = combined.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
+      var ctx = combined.getContext('2d', { willReadFrequently: true }); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
       if (pos === 'left') {
         if (cnr) ctx.drawImage(cnr, 0, 0, hCol.width, hRow.height);
         ctx.drawImage(hRow, hCol.width, 0); ctx.drawImage(hCol, 0, hRow.height); ctx.drawImage(tgt, hCol.width, hRow.height);
@@ -1384,7 +1385,7 @@
       
       state.targetRegion = r; 
       var tc = document.createElement('canvas'), cr = toCanvasCoords(r); tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
-      tc.getContext('2d').drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      tc.getContext('2d', { willReadFrequently: true }).drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
       clearAllOverlays(); redrawState();
       var hdr = state.headerImageData || cropCell(state.headerRegion), combined = state.headerRowImageData ? combineWithHeaderRow(hdr, state.headerRowImageData, tc, state.headerPosition, state.fixedHeaderImageData) : combineImages(hdr, tc, state.headerPosition);
       var ln = getCurrentListName(), name = ln + '_' + String(getNextSeqNum(ln)).padStart(3, '0');
@@ -1397,7 +1398,7 @@
       if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
       state.targetRegion = r;
       var tc = document.createElement('canvas'), cr = toCanvasCoords(r); tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
-      tc.getContext('2d').drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      tc.getContext('2d', { willReadFrequently: true }).drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
       var hdr = state.headerImageData || cropCell(state.headerRegion), combined = state.headerRowImageData ? combineWithHeaderRow(hdr, state.headerRowImageData, tc, state.headerPosition, state.fixedHeaderImageData) : combineImages(hdr, tc, state.headerPosition);
       var ln = getCurrentListName(), name = ln + '_' + String(getNextSeqNum(ln)).padStart(3, '0');
       state.extractedImages.push({ name: name, listName: ln, dataUrl: combined.toDataURL('image/png') });
@@ -1415,7 +1416,7 @@
       
       state.targetRegion = r;
       var tc = document.createElement('canvas'), cr = toCanvasCoords(r); tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
-      tc.getContext('2d').drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      tc.getContext('2d', { willReadFrequently: true }).drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
       var ln = getCurrentListName(), name = ln + '_' + String(getNextSeqNum(ln)).padStart(3, '0');
       state.extractedImages.push({ name: name, listName: ln, dataUrl: tc.toDataURL('image/png') });
       renderExtractedList(); clearAllOverlays(); redrawState(); 
