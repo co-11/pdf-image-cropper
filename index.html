@@ -298,8 +298,8 @@
       border-radius: var(--radius); padding: 12px 20px;
     }
     
-    .setting-item { display: flex; align-items: center; gap: 8px; }
-    .setting-item label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
+    .setting-item { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+    .setting-item label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); padding-left: 2px; line-height: 1; transition: opacity 0.2s; }
 
     .list-name-display { 
       font-size: 1.1rem; font-weight: 700; color: var(--primary); 
@@ -498,8 +498,8 @@
           <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 12px; min-height: 0;">
             
             <!-- 上段: ツールバー (設定とモード) -->
-            <div class="toolbar-container" style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
-              <!-- モード選択 (左寄せ) -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-shrink: 0; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+              <!-- モード選択 (左) -->
               <div class="setting-item">
                 <label>モード</label>
                 <div class="btn-group toggle-group" id="selectionModeGroup">
@@ -507,32 +507,51 @@
                   <button class="btn" data-value="withHeader">ヘッダーあり</button>
                   <button class="btn" data-value="single">単一抽出</button>
                 </div>
-                
-                <!-- ★ 歯車ボタンとポップオーバー ★ -->
-                <div style="position: relative;">
-                  <button id="btnSettingsToggle" class="btn btn-secondary btn-sm" title="検出設定" style="padding: 4px 8px; border-radius: var(--radius-sm);">
-                    <span class="material-symbols-rounded" style="font-size: 18px;">settings</span>
-                  </button>
-                  <div id="settingsPopover" class="hidden" style="position: absolute; top: 100%; left: 0; margin-top: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-lg); z-index: 100; min-width: 240px;">
-                    <div style="margin-bottom: 12px;">
-                      <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">
-                        <span>罫線検出感度</span>
-                        <span id="thresholdValue">170</span>
+              </div>
+              
+              <!-- 選択方法 ＋ 歯車 (中央) -->
+              <div class="setting-item">
+                <label>選択方法</label>
+                <div style="display: flex; align-items: stretch; gap: 8px;">
+                  <div class="btn-group toggle-group" id="selectMethodGroup">
+                    <button class="btn active" data-value="auto">自動</button>
+                    <button class="btn" data-value="manual">手動</button>
+                  </div>
+                  <!-- ★ 歯車ボタンとポップオーバー ★ -->
+                  <div style="position: relative; display: flex;">
+                    <button id="btnSettingsToggle" class="btn btn-secondary" title="検出設定" style="padding: 0 8px; height: 100%;">
+                      <span class="material-symbols-rounded" style="font-size: 18px;">settings</span>
+                    </button>
+                    <div id="settingsPopover" class="hidden" style="position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-lg); z-index: 100; min-width: 280px;">
+                      <div style="margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">
+                          <span>罫線検出感度</span>
+                          <span id="thresholdValue">170</span>
+                        </div>
+                        <input type="range" id="gridThreshold" min="30" max="200" value="170" style="width: 100%; accent-color: var(--primary);">
+                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
+                          大きくすると薄い線も検出しますが、文字等のノイズを拾いやすくなります。
+                        </div>
                       </div>
-                      <input type="range" id="gridThreshold" min="30" max="200" value="170" style="width: 100%; accent-color: var(--primary);">
-                    </div>
-                    <div>
-                      <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">
-                        <span>最小線長</span>
-                        <span id="minLineLenValue">100</span>
+                      <div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">
+                          <span>最小線長</span>
+                          <span id="minLineLenValue">20</span>
+                        </div>
+                        <input type="range" id="minLineLen" min="10" max="200" value="20" style="width: 100%; accent-color: var(--primary);">
+                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
+                          文字の誤検出を防ぐための長さの基準です。短い線を拾いたい場合は小さくします。
+                        </div>
                       </div>
-                      <input type="range" id="minLineLen" min="10" max="200" value="100" style="width: 100%; accent-color: var(--primary);">
+                      <div style="font-size: 0.7rem; color: var(--text-light); margin-top: 12px; text-align: center; border-top: 1px solid var(--border); padding-top: 8px;">
+                        ※スライダーをダブルクリックで初期値に戻ります
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
               
-              <!-- 見出し位置 (右寄せ) -->
+              <!-- 見出し位置 (右) -->
               <div class="setting-item" id="positionSettingItem">
                 <label>見出し位置</label>
                 <div class="btn-group toggle-group" id="headerPositionGroup">
@@ -592,21 +611,20 @@
                   </button>
                 </div>
                 
-                <!-- 選択方法（ラベルなし）と 選択解除 -->
-                <div style="display: flex; gap: 8px; align-items: center;">
-                  <div class="btn-group toggle-group" id="selectMethodGroup">
-                    <button class="btn active" data-value="auto">自動</button>
-                    <button class="btn" data-value="manual">手動</button>
-                  </div>
-                  <button class="btn btn-sm btn-danger-outline" id="btnClearHeader" disabled title="現在の選択をクリア">
-                    <span class="material-symbols-rounded" style="font-size:16px">layers_clear</span> 選択解除
-                  </button>
-                </div>
+                <!-- 選択解除 -->
+                <button class="btn btn-sm btn-danger-outline" id="btnClearHeader" disabled title="現在の選択をクリア">
+                  <span class="material-symbols-rounded" style="font-size:16px">layers_clear</span> 選択解除
+                </button>
               </div>
               
               <div class="main-canvas-wrapper" id="canvasContainer">
                 <canvas id="pdfCanvas"></canvas>
                 <div class="selection-overlay" id="selectionOverlay"></div>
+              </div>
+              
+              <!-- ★ キャンバス下部に操作ヒントを追加 ★ -->
+              <div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; margin-top: 8px; flex-shrink: 0;">
+                Ctrl + スクロール：ズーム　/　右クリック + ドラッグ：移動
               </div>
             </div>
 
@@ -643,8 +661,8 @@
             <div class="side-panel" style="flex: 1; margin: 0; min-height: 0; display: flex; flex-direction: column;">
               <div class="side-panel-header">
                 <h3><span class="material-symbols-rounded">imagesmode</span>抽出済み <span id="extractCount" style="color:var(--text-muted);font-weight:600;font-size:0.9rem;">(0)</span></h3>
-                <button class="btn btn-icon btn-primary btn-sm" id="btnDownloadAll" disabled title="ZIPでダウンロード">
-                  <span class="material-symbols-rounded">download</span>
+                <button class="btn btn-primary btn-sm" id="btnDownloadAll" disabled title="ZIPでダウンロード">
+                  <span class="material-symbols-rounded" style="font-size: 18px;">download</span> ダウンロード
                 </button>
               </div>
               <!-- リスト領域 -->
@@ -782,22 +800,31 @@
       dom.btnSelectFixedHeader.style.display = m === 'withHeader' ? 'inline-flex' : 'none';
       dom.btnSelectHeader.style.display = !isSingle ? 'inline-flex' : 'none';
       dom.btnSelectHeaderRow.style.display = m === 'withHeader' ? 'inline-flex' : 'none';
-      dom.btnSelectTarget.style.display = !isSingle ? 'inline-flex' : 'none';
+      // 単一抽出の時も「対象範囲」ボタンは表示する
+      dom.btnSelectTarget.style.display = 'inline-flex';
       
-      dom.positionSettingItem.style.display = !isSingle ? 'flex' : 'none';
+      // 見出し位置を単一抽出時はグレーアウト
+      var positionBtns = dom.positionSettingItem.querySelectorAll('button');
+      positionBtns.forEach(function(btn) { btn.disabled = isSingle; });
+      dom.positionSettingItem.style.opacity = isSingle ? '0.5' : '1';
+      dom.positionSettingItem.querySelector('label').style.opacity = isSingle ? '0.5' : '1';
       
-      dom.btnSelectTarget.disabled = true;
+      // 単一抽出時は最初から対象範囲を選択可能にする
+      dom.btnSelectTarget.disabled = isSingle ? false : true;
       dom.btnSelectHeaderRow.disabled = true;
 
-      // 見出しのみモードの時は、アイコンの塗りつぶしを左半分/右半分に書き換える
+      // モードに合わせてアイコンの塗りつぶし範囲を書き換える
       var pathHeader = document.getElementById('iconPathHeader');
       var pathTarget = document.getElementById('iconPathTarget');
       if (m === 'headerOnly') {
-        if(pathHeader) pathHeader.setAttribute('d', 'M12 3 H 5 A 2 2 0 0 0 3 5 V 19 A 2 2 0 0 0 5 21 H 12 Z');
-        if(pathTarget) pathTarget.setAttribute('d', 'M12 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 12 Z');
+        if(pathHeader) pathHeader.setAttribute('d', 'M12 3 H 5 A 2 2 0 0 0 3 5 V 19 A 2 2 0 0 0 5 21 H 12 Z'); // 左半分
+        if(pathTarget) pathTarget.setAttribute('d', 'M12 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 12 Z'); // 右半分
+      } else if (m === 'single') {
+        if(pathHeader) pathHeader.setAttribute('d', 'M12 21 H 5 A 2 2 0 0 1 3 19 V 12 H 12 Z'); // 左下（非表示ですが念のため）
+        if(pathTarget) pathTarget.setAttribute('d', 'M5 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 Z'); // 全体
       } else {
-        if(pathHeader) pathHeader.setAttribute('d', 'M12 21 H 5 A 2 2 0 0 1 3 19 V 12 H 12 Z');
-        if(pathTarget) pathTarget.setAttribute('d', 'M12 21 H 19 A 2 2 0 0 0 21 19 V 12 H 12 Z');
+        if(pathHeader) pathHeader.setAttribute('d', 'M12 21 H 5 A 2 2 0 0 1 3 19 V 12 H 12 Z'); // 左下
+        if(pathTarget) pathTarget.setAttribute('d', 'M12 21 H 19 A 2 2 0 0 0 21 19 V 12 H 12 Z'); // 右下
       }
     }
     
@@ -829,8 +856,8 @@
       dom.thresholdValue.textContent = 170;
     });
     dom.minLineLen.addEventListener('dblclick', function() {
-      dom.minLineLen.value = 100;
-      dom.minLineLenValue.textContent = 100;
+      dom.minLineLen.value = 20;
+      dom.minLineLenValue.textContent = 20;
     });
 
     function getCurrentListName() {
@@ -863,8 +890,10 @@
       var minLen = parseInt(dom.minLineLen.value);
       var cr = toCanvasCoords(region);
       var rx = Math.round(cr.x), ry = Math.round(cr.y), rw = Math.round(cr.w), rh = Math.round(cr.h);
-      var autoMin = Math.floor(Math.min(rw, rh) * 0.3);
-      if (autoMin < minLen) minLen = Math.max(autoMin, 8);
+      
+      // ★修正：スライダーの値を勝手に小さくしてしまうバグ処理を削除し、設定値をダイレクトに使う★
+      // （ただし、選択した領域自体よりも線長が長くなってしまうと何も検出できなくなるため、そこだけ上限をかけます）
+      minLen = Math.min(minLen, Math.max(rw, rh));
 
       var ctx = dom.pdfCanvas.getContext('2d');
       var imgData = ctx.getImageData(rx, ry, rw, rh);
@@ -1249,7 +1278,6 @@
         if (dom.extractedList) dom.extractedList.scrollTop = dom.extractedList.scrollHeight;
       }, 10);
     }
-    
     // 一括クリアボタンのイベントリスナー (confirmダイアログを削除)
     dom.btnClearImages.addEventListener('click', function() {
       state.extractedImages = [];
@@ -1259,7 +1287,8 @@
 
     function updateModeButtons() {
       dom.btnSelectHeader.classList.toggle('active', state.mode === 'header');
-      dom.btnSelectTarget.classList.toggle('active', state.mode === 'target' || state.mode === 'manual');
+      // 単一抽出モード時も対象範囲ボタンをアクティブ表示にする
+      dom.btnSelectTarget.classList.toggle('active', state.mode === 'target' || state.mode === 'manual' || state.mode === 'single');
       dom.btnSelectHeaderRow.classList.toggle('active', state.mode === 'headerRow');
       dom.btnSelectFixedHeader.classList.toggle('active', state.mode === 'fixedHeader');
 
