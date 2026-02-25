@@ -1037,7 +1037,12 @@
       var reader = new FileReader();
       reader.onload = async function(e) {
         try {
-          state.pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
+          // ★修正：CMap（日本語などのフォント辞書）を外部から読み込む設定を追加★
+          state.pdfDoc = await pdfjsLib.getDocument({ 
+            data: new Uint8Array(e.target.result),
+            cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+            cMapPacked: true
+          }).promise;
           showStep(2); await initPages();
         } catch (err) { showToast('PDFの読み込みに失敗しました'); }
       };
