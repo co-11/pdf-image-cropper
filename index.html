@@ -203,7 +203,9 @@
     .btn-group .btn:hover:not(:disabled) { color: var(--text-main); background: rgba(255,255,255,0.05); transform: none; }
     .btn-group .btn.active { background: var(--surface); color: var(--primary); box-shadow: var(--shadow-sm); font-weight: 700; border: 1px solid var(--border); }
 
-    .btn-group.toggle-group .btn { padding: 6px 12px; font-size: 0.8rem; }
+    /* ★ トグルグループの高さを36pxに固定し、中身を縦に引き伸ばして全てピッタリ揃える ★ */
+    .btn-group.toggle-group { height: 36px; align-items: stretch; }
+    .btn-group.toggle-group .btn { padding: 0 12px; font-size: 0.8rem; height: 100%; }
 
     /* ===== Upload Area ===== */
     .upload-area {
@@ -301,10 +303,15 @@
     .setting-item { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
     .setting-item label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); padding-left: 2px; line-height: 1; transition: opacity 0.2s; }
 
-    .list-name-display { 
+    /* list-name-displayをlist-name-inputに変更 */
+    .list-name-input { 
       font-size: 1.1rem; font-weight: 700; color: var(--primary); 
-      white-space: nowrap; overflow: hidden; min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1;
+      background: transparent; border: none; border-bottom: 1px dashed var(--border-dark);
+      outline: none; transition: border-color 0.2s; padding-bottom: 2px;
     }
+    .list-name-input:focus { border-bottom-color: var(--primary); }
+
     .badge-info {
       background: var(--surface); border: 1px solid var(--border); padding: 6px 12px;
       border-radius: 20px; font-size: 0.85rem; font-weight: 600; color: var(--text-main);
@@ -336,11 +343,25 @@
     .side-panel-header h3 span { color: var(--primary); }
 
     .extracted-list {
-      flex: 1; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; 
-      grid-auto-rows: max-content; 
-      gap: 10px; align-content: flex-start;
+      flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+      gap: 12px; align-content: flex-start;
       padding-right: 4px; min-height: 0;
     }
+    
+    /* グループヘッダーとコンテンツ用のスタイル */
+    .group-header {
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--surface); padding: 8px 12px;
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      cursor: pointer; font-size: 0.85rem; font-weight: 700; color: var(--text-main);
+      box-shadow: var(--shadow-sm); transition: background-color 0.2s, border-color 0.2s;
+    }
+    .group-header:hover { background: var(--surface-alt); border-color: var(--border-dark); }
+    .group-content { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+    .group-content.collapsed { display: none; }
+    .group-toggle-icon { font-size: 20px; color: var(--text-muted); transition: transform 0.3s; }
+    .group-toggle-icon.collapsed { transform: rotate(-90deg); }
+
     .extracted-item {
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
       overflow: hidden; box-shadow: var(--shadow-sm); transition: transform 0.2s, box-shadow 0.2s;
@@ -351,11 +372,20 @@
       width: 100%; height: 100px; flex-shrink: 0; 
       object-fit: contain; background: #ffffff; display: block; cursor: pointer; 
     }
-    .extracted-item-label {
-      padding: 6px; font-size: 0.65rem; font-weight: 600; background: var(--surface-alt);
-      border-top: 1px solid var(--border); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      flex-shrink: 0; color: var(--text-main);
+    
+    /* ファイル名入力用スタイル */
+    .extracted-item-name-input {
+      flex: 1; border: none; background: transparent; color: var(--text-main);
+      font-size: 0.7rem; font-weight: 600; text-align: left; padding: 6px 4px 6px 8px;
+      outline: none; min-width: 0; transition: background-color 0.2s;
     }
+    .extracted-item-name-input:focus {
+      background: var(--surface); box-shadow: inset 0 0 0 1px var(--primary);
+    }
+    .extracted-item-ext {
+      font-size: 0.65rem; color: var(--text-muted); padding-right: 8px; font-weight: 600; flex-shrink: 0;
+    }
+
     .del-btn {
       position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%;
       background: rgba(30, 41, 59, 0.9); border: 1px solid var(--border); color: #ef4444;
@@ -402,11 +432,21 @@
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      z-index: 2000; cursor: zoom-out; animation: fadeIn 0.2s ease;
+      z-index: 2000; cursor: default; animation: fadeIn 0.2s ease;
     }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    .preview-modal img { max-width: 90vw; max-height: 85vh; border-radius: var(--radius); box-shadow: var(--shadow-lg); background: #ffffff; }
-    .preview-modal-name { margin-top: 16px; background: var(--surface); color: var(--text-main); padding: 8px 24px; border-radius: 30px; font-weight: 600; box-shadow: var(--shadow); border: 1px solid var(--border); }
+    .preview-close-btn { position: absolute; top: 24px; right: 24px; background: var(--surface); color: var(--text-main); border: 1px solid var(--border); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; box-shadow: var(--shadow); transition: all 0.2s; }
+    .preview-close-btn:hover { background: var(--danger); color: #fff; border-color: var(--danger); transform: scale(1.05); }
+    .preview-modal img { border-radius: var(--radius); box-shadow: var(--shadow-lg); background: #ffffff; cursor: default; }
+    .preview-modal-name { background: var(--surface); color: var(--text-main); padding: 8px 24px; border-radius: 30px; font-weight: 600; box-shadow: var(--shadow); border: 1px solid var(--border); display: flex; align-items: center; gap: 4px; cursor: text; margin: 0; }
+    .preview-name-input { background: transparent; border: none; color: inherit; font-family: inherit; font-size: inherit; font-weight: inherit; outline: none; text-align: left; min-width: 150px; border-bottom: 1px dashed var(--border-dark); transition: border-color 0.2s; }
+    .preview-name-input:focus { border-bottom-color: var(--primary); }
+    .preview-nav-btn { background: var(--surface); color: var(--text-main); border: 1px solid var(--border); box-shadow: var(--shadow); transition: all 0.2s; flex-shrink: 0; }
+    .preview-nav-btn:hover:not(:disabled) { background: var(--primary); color: #fff; border-color: var(--primary); transform: scale(1.05); }
+    .preview-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .preview-nav-btn-sm { background: var(--surface); color: var(--text-main); border: 1px solid var(--border); box-shadow: var(--shadow-sm); transition: all 0.2s; flex-shrink: 0; }
+    .preview-nav-btn-sm:hover:not(:disabled) { background: var(--primary); color: #fff; border-color: var(--primary); transform: scale(1.05); }
+    .preview-nav-btn-sm:disabled { opacity: 0.3; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -499,66 +539,82 @@
             
             <!-- 上段: ツールバー (設定とモード) -->
             <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-shrink: 0; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
-              <!-- モード選択 (左) -->
-              <div class="setting-item">
-                <label>モード</label>
-                <div class="btn-group toggle-group" id="selectionModeGroup">
-                  <button class="btn active" data-value="headerOnly">見出しのみ</button>
-                  <button class="btn" data-value="withHeader">ヘッダーあり</button>
-                  <button class="btn" data-value="single">単一抽出</button>
-                </div>
-              </div>
               
-              <!-- 選択方法 ＋ 歯車 (中央) -->
-              <div class="setting-item">
-                <label>選択方法</label>
-                <div style="display: flex; align-items: stretch; gap: 8px;">
-                  <div class="btn-group toggle-group" id="selectMethodGroup">
-                    <button class="btn active" data-value="auto">自動</button>
-                    <button class="btn" data-value="manual">手動</button>
+              <div style="display: flex; gap: 24px;">
+                <!-- モード選択 (左) -->
+                <div class="setting-item">
+                  <label>モード</label>
+                  <div class="btn-group toggle-group" id="selectionModeGroup">
+                    <button class="btn active" data-value="headerOnly">見出しのみ</button>
+                    <button class="btn" data-value="withHeader">ヘッダーあり</button>
+                    <button class="btn" data-value="single">単一抽出</button>
                   </div>
-                  <!-- ★ 歯車ボタンとポップオーバー ★ -->
-                  <div style="position: relative; display: flex;">
-                    <button id="btnSettingsToggle" class="btn btn-secondary" title="検出設定" style="padding: 0 8px; height: 100%;">
-                      <span class="material-symbols-rounded" style="font-size: 18px;">settings</span>
-                    </button>
-                    <div id="settingsPopover" class="hidden" style="position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-lg); z-index: 100; min-width: 280px;">
-                      <div style="margin-bottom: 16px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">
-                          <span>罫線検出感度</span>
-                          <span id="thresholdValue">170</span>
+                </div>
+                
+                <!-- 選択方法 ＋ 歯車 (中央) -->
+                <div class="setting-item">
+                  <label>選択方法</label>
+                  <div style="display: flex; align-items: stretch; gap: 8px;">
+                    <div class="btn-group toggle-group" id="selectMethodGroup">
+                      <button class="btn active" data-value="auto">自動</button>
+                      <button class="btn" data-value="manual">手動</button>
+                    </div>
+                    <!-- ★ 歯車ボタンとポップオーバー ★ -->
+                    <div style="position: relative; display: flex;">
+                      <button id="btnSettingsToggle" class="btn btn-secondary" title="検出設定" style="padding: 0 8px; height: 100%;">
+                        <span class="material-symbols-rounded" style="font-size: 18px;">settings</span>
+                      </button>
+                      <div id="settingsPopover" class="hidden" style="position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-lg); z-index: 100; min-width: 280px;">
+                        <div style="margin-bottom: 16px;">
+                          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">
+                            <span>罫線検出感度</span>
+                            <span id="thresholdValue">170</span>
+                          </div>
+                          <input type="range" id="gridThreshold" min="30" max="200" value="170" style="width: 100%; accent-color: var(--primary);">
+                          <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
+                            大きくすると薄い線も検出しますが、文字等のノイズを拾いやすくなります。
+                          </div>
                         </div>
-                        <input type="range" id="gridThreshold" min="30" max="200" value="170" style="width: 100%; accent-color: var(--primary);">
-                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
-                          大きくすると薄い線も検出しますが、文字等のノイズを拾いやすくなります。
+                        <div>
+                          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">
+                            <span>最小線長</span>
+                            <span id="minLineLenValue">20</span>
+                          </div>
+                          <input type="range" id="minLineLen" min="10" max="200" value="20" style="width: 100%; accent-color: var(--primary);">
+                          <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
+                            文字の誤検出を防ぐための長さの基準です。短い線を拾いたい場合は小さくします。
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">
-                          <span>最小線長</span>
-                          <span id="minLineLenValue">20</span>
+                        <div style="font-size: 0.7rem; color: var(--text-light); margin-top: 12px; text-align: center; border-top: 1px solid var(--border); padding-top: 8px;">
+                          ※スライダーをダブルクリックで初期値に戻ります
                         </div>
-                        <input type="range" id="minLineLen" min="10" max="200" value="20" style="width: 100%; accent-color: var(--primary);">
-                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
-                          文字の誤検出を防ぐための長さの基準です。短い線を拾いたい場合は小さくします。
-                        </div>
-                      </div>
-                      <div style="font-size: 0.7rem; color: var(--text-light); margin-top: 12px; text-align: center; border-top: 1px solid var(--border); padding-top: 8px;">
-                        ※スライダーをダブルクリックで初期値に戻ります
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
               
-              <!-- 見出し位置 (右) -->
-              <div class="setting-item" id="positionSettingItem">
-                <label>見出し位置</label>
-                <div class="btn-group toggle-group" id="headerPositionGroup">
-                  <button class="btn active" data-value="left">左</button>
-                  <button class="btn" data-value="right">右</button>
-                  <button class="btn" data-value="top">上</button>
-                  <button class="btn" data-value="bottom">下</button>
+              <div style="display: flex; gap: 24px;">
+                <!-- 見出し位置 (右) -->
+                <div class="setting-item" id="positionSettingItem">
+                  <label>見出し位置</label>
+                  <div class="btn-group toggle-group" id="headerPositionGroup">
+                    <button class="btn active" data-value="left">左</button>
+                    <button class="btn" data-value="right">右</button>
+                    <button class="btn" data-value="top">上</button>
+                    <button class="btn" data-value="bottom">下</button>
+                  </div>
+                </div>
+                
+                <!-- ★ 外枠線 (右端にチェックボックスで追加) ★ -->
+                <div class="setting-item" id="borderSettingItem">
+                  <label>外枠線</label>
+                  <div class="btn-group toggle-group">
+                    <label id="borderCheckboxLabel" class="btn active" style="cursor: pointer; margin: 0;">
+                      <input type="checkbox" id="addBorderCheckbox" checked style="margin: 0; width: 14px; height: 14px; accent-color: var(--primary); cursor: pointer;">
+                      <span id="borderCheckboxText">あり</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -638,7 +694,7 @@
               <!-- 図面名称 (左揃え＆アイコン付き) -->
               <div style="display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; overflow: hidden;">
                 <span class="material-symbols-rounded" style="color: var(--primary); font-size: 24px; flex-shrink: 0;">format_list_bulleted</span>
-                <span class="list-name-display" id="listNameDisplay">図面名称</span>
+                <input type="text" id="listNameInput" class="list-name-input" value="図面名称" title="クリックして名称を編集">
               </div>
               
               <!-- ナビゲーション (ページ送り・中央揃え) -->
@@ -710,8 +766,8 @@
 
     // ===== State =====
     var state = {
-      pdfDoc: null, pages: [], selectedPages: [], currentWorkPage: 0, scale: 2,
-      mode: 'header', headerPosition: 'left',
+      pdfDoc: null, pages: [], selectedPages: [], currentWorkPage: 0, scale: 4,
+      mode: 'header', headerPosition: 'left', addBorder: true,
       headerRegion: null, headerCells: [], targetRegion: null, targetCells: [],
       headerImageData: null, headerRect: null,
       headerRowRegion: null, headerRowCells: [], headerRowImageData: null,
@@ -719,6 +775,7 @@
       selectionMode: 'headerOnly', selectMethod: 'auto',
       extractedImages: [], historyRegions: [],
       isDragging: false, dragStart: null, dragCurrent: null, lastClickedIndex: -1,
+      collapsedGroups: {},
     };
 
     // ===== DOM =====
@@ -731,7 +788,7 @@
       st1: qs('#st1'), st2: qs('#st2'), st3: qs('#st3'),
       pageThumbnails: qs('#pageThumbnails'), pageIndicator: qs('#pageIndicator'),
       goToStep3: qs('#goToStep3'), btnSelectAll: qs('#btnSelectAll'), btnDeselectAll: qs('#btnDeselectAll'),
-      listNameDisplay: qs('#listNameDisplay'), currentPageLabel: qs('#currentPageLabel'),
+      listNameInput: qs('#listNameInput'), currentPageLabel: qs('#currentPageLabel'),
       btnSelectHeader: qs('#btnSelectHeader'), btnSelectTarget: qs('#btnSelectTarget'),
       btnSelectFixedHeader: qs('#btnSelectFixedHeader'), btnSelectHeaderRow: qs('#btnSelectHeaderRow'),
       positionSettingItem: qs('#positionSettingItem'),
@@ -742,7 +799,8 @@
       toast: qs('#toast'), toastMsg: qs('#toastMsg'),
       btnSettingsToggle: qs('#btnSettingsToggle'), settingsPopover: qs('#settingsPopover'),
       gridThreshold: qs('#gridThreshold'), thresholdValue: qs('#thresholdValue'),
-      minLineLen: qs('#minLineLen'), minLineLenValue: qs('#minLineLenValue')
+      minLineLen: qs('#minLineLen'), minLineLenValue: qs('#minLineLenValue'),
+      addBorderCheckbox: qs('#addBorderCheckbox')
     };
 
     // ===== Settings Popover Toggle =====
@@ -791,6 +849,62 @@
     }
 
     setupToggleGroup('headerPositionGroup', 'headerPosition');
+    
+    // ★ リスト名称の編集イベント（確実な全選択対応） ★
+    if (dom.listNameInput) {
+      dom.listNameInput.addEventListener('focus', function(e) { 
+        e.target.select(); 
+        e.target.addEventListener('mouseup', function prevent(e2) {
+          e2.preventDefault();
+          e.target.removeEventListener('mouseup', prevent);
+        });
+      });
+      dom.listNameInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') e.target.blur(); 
+      });
+      dom.listNameInput.addEventListener('change', function(e) {
+        var oldName = getCurrentListName();
+        var newName = e.target.value.trim() || '名称未設定';
+        
+        if (oldName !== newName) {
+          var pageNum = state.selectedPages[state.currentWorkPage];
+          for (var i = 0; i < state.pages.length; i++) {
+            if (state.pages[i].pageNum === pageNum) {
+              state.pages[i].drawingName = newName;
+              break;
+            }
+          }
+          state.extractedImages.forEach(function(img) {
+            if (img.listName === oldName) img.listName = newName;
+          });
+          if (state.collapsedGroups[oldName] !== undefined) {
+            state.collapsedGroups[newName] = state.collapsedGroups[oldName];
+            delete state.collapsedGroups[oldName];
+          }
+          renumberImages();
+          renderExtractedList(true);
+          showToast('リスト名を「' + newName + '」に変更しました');
+        } else {
+          e.target.value = oldName; 
+        }
+      });
+    }
+
+    // ★ チェックボックスのイベントリスナー ★
+    if (dom.addBorderCheckbox) {
+      var borderLabel = qs('#borderCheckboxLabel');
+      var borderText = qs('#borderCheckboxText');
+      dom.addBorderCheckbox.addEventListener('change', function(e) {
+        state.addBorder = e.target.checked;
+        if (e.target.checked) {
+          if (borderLabel) borderLabel.classList.add('active');
+          if (borderText) borderText.textContent = 'あり';
+        } else {
+          if (borderLabel) borderLabel.classList.remove('active');
+          if (borderText) borderText.textContent = 'なし';
+        }
+      });
+    }
 
     // ===== Selection Mode =====
     function applySelectionMode() {
@@ -800,31 +914,27 @@
       dom.btnSelectFixedHeader.style.display = m === 'withHeader' ? 'inline-flex' : 'none';
       dom.btnSelectHeader.style.display = !isSingle ? 'inline-flex' : 'none';
       dom.btnSelectHeaderRow.style.display = m === 'withHeader' ? 'inline-flex' : 'none';
-      // 単一抽出の時も「対象範囲」ボタンは表示する
       dom.btnSelectTarget.style.display = 'inline-flex';
       
-      // 見出し位置を単一抽出時はグレーアウト
       var positionBtns = dom.positionSettingItem.querySelectorAll('button');
       positionBtns.forEach(function(btn) { btn.disabled = isSingle; });
       dom.positionSettingItem.style.opacity = isSingle ? '0.5' : '1';
       dom.positionSettingItem.querySelector('label').style.opacity = isSingle ? '0.5' : '1';
       
-      // 単一抽出時は最初から対象範囲を選択可能にする
       dom.btnSelectTarget.disabled = isSingle ? false : true;
       dom.btnSelectHeaderRow.disabled = true;
 
-      // モードに合わせてアイコンの塗りつぶし範囲を書き換える
       var pathHeader = document.getElementById('iconPathHeader');
       var pathTarget = document.getElementById('iconPathTarget');
       if (m === 'headerOnly') {
-        if(pathHeader) pathHeader.setAttribute('d', 'M12 3 H 5 A 2 2 0 0 0 3 5 V 19 A 2 2 0 0 0 5 21 H 12 Z'); // 左半分
-        if(pathTarget) pathTarget.setAttribute('d', 'M12 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 12 Z'); // 右半分
+        if(pathHeader) pathHeader.setAttribute('d', 'M12 3 H 5 A 2 2 0 0 0 3 5 V 19 A 2 2 0 0 0 5 21 H 12 Z'); 
+        if(pathTarget) pathTarget.setAttribute('d', 'M12 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 12 Z'); 
       } else if (m === 'single') {
-        if(pathHeader) pathHeader.setAttribute('d', 'M12 21 H 5 A 2 2 0 0 1 3 19 V 12 H 12 Z'); // 左下（非表示ですが念のため）
-        if(pathTarget) pathTarget.setAttribute('d', 'M5 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 Z'); // 全体
+        if(pathHeader) pathHeader.setAttribute('d', 'M12 21 H 5 A 2 2 0 0 1 3 19 V 12 H 12 Z'); 
+        if(pathTarget) pathTarget.setAttribute('d', 'M5 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 Z'); 
       } else {
-        if(pathHeader) pathHeader.setAttribute('d', 'M12 21 H 5 A 2 2 0 0 1 3 19 V 12 H 12 Z'); // 左下
-        if(pathTarget) pathTarget.setAttribute('d', 'M12 21 H 19 A 2 2 0 0 0 21 19 V 12 H 12 Z'); // 右下
+        if(pathHeader) pathHeader.setAttribute('d', 'M12 21 H 5 A 2 2 0 0 1 3 19 V 12 H 12 Z'); 
+        if(pathTarget) pathTarget.setAttribute('d', 'M12 21 H 19 A 2 2 0 0 0 21 19 V 12 H 12 Z'); 
       }
     }
     
@@ -833,6 +943,16 @@
       state.headerRect = null; state.headerImageData = null; state.headerRowRegion = null; state.headerRowCells = [];
       state.headerRowImageData = null; state.fixedHeaderRegion = null; state.fixedHeaderImageData = null;
       state.mode = state.selectionMode === 'withHeader' ? 'fixedHeader' : state.selectionMode === 'single' ? 'single' : 'header';
+      
+      if (val === 'single') {
+        state.selectMethod = 'manual';
+      } else {
+        state.selectMethod = 'auto';
+      }
+      qs('#selectMethodGroup').querySelectorAll('button').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.value === state.selectMethod);
+      });
+
       dom.btnClearHeader.disabled = true;
       applySelectionMode(); updateModeButtons(); clearAllOverlays();
       var msgs = { headerOnly: '見出しを選択してください', withHeader: '固定ヘッダーを選択してください', single: '抽出する範囲を選択してください' };
@@ -850,7 +970,6 @@
     dom.gridThreshold.addEventListener('input', function() { dom.thresholdValue.textContent = dom.gridThreshold.value; });
     dom.minLineLen.addEventListener('input', function() { dom.minLineLenValue.textContent = dom.minLineLen.value; });
 
-    // ★ スライダーダブルクリックでデフォルト値に戻す ★
     dom.gridThreshold.addEventListener('dblclick', function() {
       dom.gridThreshold.value = 170;
       dom.thresholdValue.textContent = 170;
@@ -878,6 +997,7 @@
     function renumberImages() {
       var counters = {};
       for (var i = 0; i < state.extractedImages.length; i++) {
+        if (state.extractedImages[i].customName) continue;
         var ln = state.extractedImages[i].listName;
         counters[ln] = (counters[ln] || 0) + 1;
         state.extractedImages[i].name = ln + '_' + String(counters[ln]).padStart(3, '0');
@@ -891,11 +1011,8 @@
       var cr = toCanvasCoords(region);
       var rx = Math.round(cr.x), ry = Math.round(cr.y), rw = Math.round(cr.w), rh = Math.round(cr.h);
       
-      // ★修正：スライダーの値を勝手に小さくしてしまうバグ処理を削除し、設定値をダイレクトに使う★
-      // （ただし、選択した領域自体よりも線長が長くなってしまうと何も検出できなくなるため、そこだけ上限をかけます）
       minLen = Math.min(minLen, Math.max(rw, rh));
 
-      // willReadFrequently を追加して警告を解消
       var ctx = dom.pdfCanvas.getContext('2d', { willReadFrequently: true });
       var imgData = ctx.getImageData(rx, ry, rw, rh);
       var d = imgData.data, w = rw, h = rh;
@@ -1019,15 +1136,25 @@
         case 'left': default: cw = hw + tw; ch = Math.max(hh, th); hx = 0; hy = (ch - hh) / 2; tx = hw; ty = (ch - th) / 2; break;
       }
       var combined = document.createElement('canvas'); combined.width = cw; combined.height = ch;
-      var ctx = combined.getContext('2d', { willReadFrequently: true }); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
+      var ctx = combined.getContext('2d', { willReadFrequently: true }); 
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
       ctx.drawImage(hdrCanvas, hx, hy); ctx.drawImage(tgtCanvas, tx, ty);
+      
+      if (state.addBorder) {
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(1, 1, cw - 2, ch - 2);
+      }
       return combined;
     }
 
     function cropCell(cell) {
       var cc = toCanvasCoords(cell), c = document.createElement('canvas');
       c.width = Math.round(cc.w); c.height = Math.round(cc.h);
-      c.getContext('2d', { willReadFrequently: true }).drawImage(dom.pdfCanvas, cc.x, cc.y, cc.w, cc.h, 0, 0, c.width, c.height);
+      var ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(dom.pdfCanvas, cc.x, cc.y, cc.w, cc.h, 0, 0, c.width, c.height);
       return c;
     }
 
@@ -1130,32 +1257,22 @@
     }
     function resetWorkState() { state.extractedImages = []; state.scale = 2; if (dom.canvasContainer) { dom.canvasContainer.scrollLeft = 0; dom.canvasContainer.scrollTop = 0; } resetPageSelection(); renderExtractedList(); }
 
-    // ===== テキストがはみ出す場合にフォントサイズを下げる処理 =====
-    function adjustListNameSize() {
-      var el = dom.listNameDisplay;
-      el.style.fontSize = '1.1rem'; 
-      
-      requestAnimationFrame(function() {
-        var size = 1.1;
-        while (el.scrollWidth > el.clientWidth && size > 0.6) {
-          size -= 0.05;
-          el.style.fontSize = size + 'rem';
-        }
-      });
-    }
-
     // ===== Step 3: Work Area =====
     async function renderWorkPage() {
       var pageNum = state.selectedPages[state.currentWorkPage];
       
-      // リスト名称のセットとサイズ自動調整
-      dom.listNameDisplay.textContent = getCurrentListName();
-      adjustListNameSize();
-      
-      // ◯ / ◯ 表記に変更
+      dom.listNameInput.value = getCurrentListName();
       dom.currentPageLabel.textContent = (state.currentWorkPage + 1) + ' / ' + state.selectedPages.length;
       
-      var page = await state.pdfDoc.getPage(pageNum); _renderScale = 2;
+      var currentName = getCurrentListName();
+      var names = {};
+      state.extractedImages.forEach(function(img) { names[img.listName] = true; });
+      for (var name in names) {
+        state.collapsedGroups[name] = (name !== currentName);
+      }
+      renderExtractedList(true); 
+      
+      var page = await state.pdfDoc.getPage(pageNum); _renderScale = 4;
       var vp = page.getViewport({ scale: _renderScale });
       dom.pdfCanvas.width = vp.width; dom.pdfCanvas.height = vp.height;
       await page.render({ canvasContext: dom.pdfCanvas.getContext('2d', { willReadFrequently: true }), viewport: vp }).promise;
@@ -1262,33 +1379,18 @@
 
     dom.btnClearHeader.addEventListener('click', function() { resetPageSelection(); });
 
-    function renderExtractedList() {
-      dom.extractedList.innerHTML = ''; dom.extractCount.textContent = '(' + state.extractedImages.length + ')';
-      dom.btnDownloadAll.disabled = state.extractedImages.length === 0;
-      dom.btnClearImages.disabled = state.extractedImages.length === 0; 
-      
-      state.extractedImages.forEach(function(img, i) {
-        var item = document.createElement('div'); item.className = 'extracted-item';
-        item.innerHTML = '<img src="' + img.dataUrl + '"><div class="extracted-item-label">' + img.name + '.png</div><button class="del-btn" title="削除"><span class="material-symbols-rounded">close</span></button>';
-        item.querySelector('img').addEventListener('click', function() { showPreviewModal(i); });
-        item.querySelector('.del-btn').addEventListener('click', function() { state.extractedImages.splice(i, 1); renumberImages(); renderExtractedList(); });
-        dom.extractedList.appendChild(item);
-      });
-      // リストが更新されたら一番下まで自動スクロールする
-      setTimeout(function() {
-        if (dom.extractedList) dom.extractedList.scrollTop = dom.extractedList.scrollHeight;
-      }, 10);
-    }
-    // 一括クリアボタンのイベントリスナー (confirmダイアログを削除)
+    // ==========================================
+    // ★ 消失していた関数・イベントリスナーの復元 ★
+    // ==========================================
     dom.btnClearImages.addEventListener('click', function() {
       state.extractedImages = [];
+      state.collapsedGroups = {};
       renderExtractedList();
       showToast('画像をすべてクリアしました');
     });
 
     function updateModeButtons() {
       dom.btnSelectHeader.classList.toggle('active', state.mode === 'header');
-      // 単一抽出モード時も対象範囲ボタンをアクティブ表示にする
       dom.btnSelectTarget.classList.toggle('active', state.mode === 'target' || state.mode === 'manual' || state.mode === 'single');
       dom.btnSelectHeaderRow.classList.toggle('active', state.mode === 'headerRow');
       dom.btnSelectFixedHeader.classList.toggle('active', state.mode === 'fixedHeader');
@@ -1319,7 +1421,7 @@
     }
     
     function toCanvasCoords(r) { var k = _renderScale / state.scale; return { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k }; }
-    var _renderScale = 2;
+    var _renderScale = 4;
     
     function applyZoomTransform() {
       var r = state.scale / _renderScale;
@@ -1359,7 +1461,9 @@
       if (pos === 'left' || pos === 'right') { cw = hCol.width + tgt.width; ch = hRow.height + tgt.height; }
       else { cw = Math.max(hRow.width, tgt.width); ch = hCol.height + hRow.height + tgt.height; }
       combined.width = cw; combined.height = ch;
-      var ctx = combined.getContext('2d', { willReadFrequently: true }); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
+      var ctx = combined.getContext('2d', { willReadFrequently: true }); 
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
+      
       if (pos === 'left') {
         if (cnr) ctx.drawImage(cnr, 0, 0, hCol.width, hRow.height);
         ctx.drawImage(hRow, hCol.width, 0); ctx.drawImage(hCol, 0, hRow.height); ctx.drawImage(tgt, hCol.width, hRow.height);
@@ -1371,13 +1475,19 @@
       } else {
         if (cnr) ctx.drawImage(cnr, 0, 0); ctx.drawImage(hRow, 0, 0); ctx.drawImage(tgt, 0, hRow.height); ctx.drawImage(hCol, 0, hRow.height + tgt.height);
       }
+      
+      if (state.addBorder) {
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(1, 1, cw - 2, ch - 2);
+      }
+      
       return combined;
     };
 
     var confirmTargetRegion = function(r) {
       if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
       
-      // 自動なら罫線を検出してスナップ
       if (state.selectMethod === 'auto') {
         var cells = linesToCells(detectLines(r)); state.targetCells = cells;
         if (cells.length > 0) r = cellsBoundingBox(cells);
@@ -1385,11 +1495,17 @@
       
       state.targetRegion = r; 
       var tc = document.createElement('canvas'), cr = toCanvasCoords(r); tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
-      tc.getContext('2d', { willReadFrequently: true }).drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      var ctx = tc.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, tc.width, tc.height);
+      ctx.drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      
       clearAllOverlays(); redrawState();
       var hdr = state.headerImageData || cropCell(state.headerRegion), combined = state.headerRowImageData ? combineWithHeaderRow(hdr, state.headerRowImageData, tc, state.headerPosition, state.fixedHeaderImageData) : combineImages(hdr, tc, state.headerPosition);
       var ln = getCurrentListName(), name = ln + '_' + String(getNextSeqNum(ln)).padStart(3, '0');
-      state.extractedImages.push({ name: name, listName: ln, dataUrl: combined.toDataURL('image/png') });
+      
+      state.collapsedGroups[ln] = false; 
+      
+      state.extractedImages.push({ name: name, listName: ln, dataUrl: combined.toDataURL('image/jpeg', 0.95) });
       renderExtractedList(); if (state.selectionMode === 'withHeader') { state.mode = 'headerRow'; updateModeButtons(); }
       showToast(name + ' を抽出しました');
     };
@@ -1398,17 +1514,22 @@
       if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
       state.targetRegion = r;
       var tc = document.createElement('canvas'), cr = toCanvasCoords(r); tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
-      tc.getContext('2d', { willReadFrequently: true }).drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      var ctx = tc.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, tc.width, tc.height);
+      ctx.drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      
       var hdr = state.headerImageData || cropCell(state.headerRegion), combined = state.headerRowImageData ? combineWithHeaderRow(hdr, state.headerRowImageData, tc, state.headerPosition, state.fixedHeaderImageData) : combineImages(hdr, tc, state.headerPosition);
       var ln = getCurrentListName(), name = ln + '_' + String(getNextSeqNum(ln)).padStart(3, '0');
-      state.extractedImages.push({ name: name, listName: ln, dataUrl: combined.toDataURL('image/png') });
+      
+      state.collapsedGroups[ln] = false; 
+      
+      state.extractedImages.push({ name: name, listName: ln, dataUrl: combined.toDataURL('image/jpeg', 0.95) });
       renderExtractedList(); clearAllOverlays(); redrawState(); showToast(name + ' を抽出しました');
     };
 
     var confirmSingleTarget = function(r) {
       if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
       
-      // 単一モードでも「自動」なら罫線検出でスナップする
       if (state.selectMethod === 'auto') {
         var cells = linesToCells(detectLines(r));
         if (cells.length > 0) r = cellsBoundingBox(cells);
@@ -1416,34 +1537,233 @@
       
       state.targetRegion = r;
       var tc = document.createElement('canvas'), cr = toCanvasCoords(r); tc.width = Math.round(cr.w); tc.height = Math.round(cr.h);
-      tc.getContext('2d', { willReadFrequently: true }).drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      var ctx = tc.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, tc.width, tc.height);
+      ctx.drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+      
+      if (state.addBorder) {
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(1, 1, tc.width - 2, tc.height - 2);
+      }
+      
       var ln = getCurrentListName(), name = ln + '_' + String(getNextSeqNum(ln)).padStart(3, '0');
-      state.extractedImages.push({ name: name, listName: ln, dataUrl: tc.toDataURL('image/png') });
+      
+      state.collapsedGroups[ln] = false; 
+      
+      state.extractedImages.push({ name: name, listName: ln, dataUrl: tc.toDataURL('image/jpeg', 0.95) });
       renderExtractedList(); clearAllOverlays(); redrawState(); 
-      dom.btnClearHeader.disabled = false; // 単一モードでもクリアボタンを有効化
+      dom.btnClearHeader.disabled = false; 
       showToast(name + ' を抽出しました');
     };
+    // ==========================================
+    // ★ 復元ここまで ★
+    // ==========================================
+
+    function renderExtractedList(preventScroll) {
+      dom.extractedList.innerHTML = ''; dom.extractCount.textContent = '(' + state.extractedImages.length + ')';
+      dom.btnDownloadAll.disabled = state.extractedImages.length === 0;
+      dom.btnClearImages.disabled = state.extractedImages.length === 0; 
+      
+      // ★ リスト名ごとにグループ化する ★
+      var grouped = {};
+      state.extractedImages.forEach(function(img, i) {
+        if (!grouped[img.listName]) grouped[img.listName] = [];
+        grouped[img.listName].push({ img: img, index: i });
+      });
+
+      for (var listName in grouped) {
+        var groupContainer = document.createElement('div');
+        var isCollapsed = state.collapsedGroups[listName];
+
+        // グループヘッダー
+        var header = document.createElement('div');
+        header.className = 'group-header';
+        header.innerHTML = '<span>' + listName + ' <span style="color:var(--text-muted);font-weight:normal;font-size:0.75rem;">(' + grouped[listName].length + ')</span></span>' +
+                           '<span class="material-symbols-rounded group-toggle-icon ' + (isCollapsed ? 'collapsed' : '') + '">expand_more</span>';
+
+        // アコーディオン開閉のイベント
+        (function(ln) {
+          header.addEventListener('click', function() {
+            state.collapsedGroups[ln] = !state.collapsedGroups[ln];
+            renderExtractedList(true); 
+          });
+        })(listName);
+
+        var contentGrid = document.createElement('div');
+        contentGrid.className = 'group-content' + (isCollapsed ? ' collapsed' : '');
+
+        grouped[listName].forEach(function(item) {
+          var img = item.img;
+          var i = item.index;
+          var el = document.createElement('div'); el.className = 'extracted-item';
+          
+          el.innerHTML = '<img src="' + img.dataUrl + '">' +
+            '<div style="display:flex; align-items:center; border-top: 1px solid var(--border); background: var(--surface-alt);">' +
+              '<input type="text" class="extracted-item-name-input" value="' + img.name + '" title="ファイル名を変更">' +
+              '<span class="extracted-item-ext">.jpg</span>' +
+            '</div>' +
+            '<button class="del-btn" title="削除"><span class="material-symbols-rounded">close</span></button>';
+          
+          el.querySelector('img').addEventListener('click', function() { showPreviewModal(i); });
+          
+          var nameInput = el.querySelector('.extracted-item-name-input');
+          nameInput.addEventListener('click', function(e) { e.stopPropagation(); });
+          
+          // ★ 抽出済みのファイル名の確実な全選択対応 ★
+          nameInput.addEventListener('focus', function(e) { 
+            e.target.select();
+            e.target.addEventListener('mouseup', function prevent(e2) {
+              e2.preventDefault();
+              e.target.removeEventListener('mouseup', prevent);
+            });
+          });
+          
+          nameInput.addEventListener('change', function(e) {
+            var newName = e.target.value.trim();
+            if (newName && newName !== img.name) {
+              state.extractedImages[i].name = newName;
+              state.extractedImages[i].customName = true;
+            } else {
+              e.target.value = img.name;
+            }
+          });
+
+          el.querySelector('.del-btn').addEventListener('click', function() { 
+            state.extractedImages.splice(i, 1); 
+            renumberImages(); 
+            renderExtractedList(true); 
+          });
+          
+          contentGrid.appendChild(el);
+        });
+
+        groupContainer.appendChild(header);
+        groupContainer.appendChild(contentGrid);
+        dom.extractedList.appendChild(groupContainer);
+      }
+      
+      if (!preventScroll) {
+        setTimeout(function() {
+          if (dom.extractedList) dom.extractedList.scrollTop = dom.extractedList.scrollHeight;
+        }, 10);
+      }
+    }
 
     function showPreviewModal(idx) {
       var img = state.extractedImages[idx]; if (!img) return;
-      var modal = document.createElement('div'); modal.className = 'preview-modal';
-      modal.innerHTML = '<img src="' + img.dataUrl + '"><div class="preview-modal-name">' + img.name + '.png</div>';
-      modal.addEventListener('click', function() { document.body.removeChild(modal); });
-      document.addEventListener('keydown', function onKey(e) { if (e.key === 'Escape') { if (modal.parentNode) document.body.removeChild(modal); document.removeEventListener('keydown', onKey); } });
+      
+      var existing = document.getElementById('previewModal');
+      if (existing) existing.remove();
+
+      var hasPrev = idx > 0;
+      var hasNext = idx < state.extractedImages.length - 1;
+
+      var modal = document.createElement('div'); 
+      modal.className = 'preview-modal';
+      modal.id = 'previewModal';
+      
+      // ★ プレビュー画面のレイアウト調整 ★
+      modal.innerHTML = 
+        '<button class="preview-close-btn" title="閉じる"><span class="material-symbols-rounded">close</span></button>' +
+        
+        '<div class="preview-main-wrapper" style="display: flex; align-items: center; justify-content: center; flex: 1; min-height: 0; width: 100%; padding: 40px 24px 0 24px;">' +
+          '<div style="display: flex; align-items: center; justify-content: center; gap: 16px; height: 100%; max-width: 100%;">' +
+            '<button class="btn btn-icon preview-nav-btn prev-btn" ' + (hasPrev ? '' : 'disabled') + ' style="border-radius: 50%; width: 48px; height: 48px; flex-shrink: 0;"><span class="material-symbols-rounded" style="font-size: 32px;">chevron_left</span></button>' +
+            '<img src="' + img.dataUrl + '" style="max-width: calc(100vw - 200px); max-height: 100%; object-fit: contain; cursor: default;">' +
+            '<button class="btn btn-icon preview-nav-btn next-btn" ' + (hasNext ? '' : 'disabled') + ' style="border-radius: 50%; width: 48px; height: 48px; flex-shrink: 0;"><span class="material-symbols-rounded" style="font-size: 32px;">chevron_right</span></button>' +
+          '</div>' +
+        '</div>' +
+        
+        // ★ ファイル名の高さを margin-bottom: 220px で調整 ★
+        '<div style="display: flex; align-items: center; justify-content: center; gap: 12px; height: 60px; margin-bottom: 220px; margin-top: 16px; flex-shrink: 0;">' +
+          '<button class="btn btn-icon preview-nav-btn-sm prev-btn" ' + (hasPrev ? '' : 'disabled') + ' style="border-radius: 50%; width: 36px; height: 36px;"><span class="material-symbols-rounded">chevron_left</span></button>' +
+          '<div class="preview-modal-name" title="クリックしてファイル名を変更">' +
+            '<input type="text" class="preview-name-input" value="' + img.name + '">' +
+            '<span>.jpg</span>' +
+          '</div>' +
+          '<button class="btn btn-icon preview-nav-btn-sm next-btn" ' + (hasNext ? '' : 'disabled') + ' style="border-radius: 50%; width: 36px; height: 36px;"><span class="material-symbols-rounded">chevron_right</span></button>' +
+        '</div>';
+      
+      modal.addEventListener('click', function(e) { 
+        if (e.target === modal || e.target.classList.contains('preview-main-wrapper')) {
+          document.body.removeChild(modal); 
+        }
+      });
+      modal.querySelector('.preview-close-btn').addEventListener('click', function() {
+        if (modal.parentNode) document.body.removeChild(modal);
+      });
+      modal.querySelector('img').addEventListener('click', function(e) {
+        e.stopPropagation(); 
+      });
+      
+      var prevBtns = modal.querySelectorAll('.prev-btn');
+      prevBtns.forEach(function(btn) {
+        btn.addEventListener('click', function(e) { e.stopPropagation(); if (hasPrev) showPreviewModal(idx - 1); });
+      });
+      var nextBtns = modal.querySelectorAll('.next-btn');
+      nextBtns.forEach(function(btn) {
+        btn.addEventListener('click', function(e) { e.stopPropagation(); if (hasNext) showPreviewModal(idx + 1); });
+      });
+      
+      var inputEl = modal.querySelector('.preview-name-input');
+      inputEl.addEventListener('click', function(e) { e.stopPropagation(); });
+      
+      // ★ プレビュー画面のファイル名の確実な全選択対応 ★
+      inputEl.addEventListener('focus', function(e) { 
+        e.target.select();
+        e.target.addEventListener('mouseup', function prevent(e2) {
+          e2.preventDefault();
+          e.target.removeEventListener('mouseup', prevent);
+        });
+      });
+      
+      inputEl.addEventListener('change', function(e) {
+        var newName = e.target.value.trim();
+        if (newName && newName !== img.name) {
+          state.extractedImages[idx].name = newName;
+          state.extractedImages[idx].customName = true;
+          renderExtractedList(true);
+        } else {
+          e.target.value = img.name;
+        }
+      });
+
+      function onKey(e) { 
+        if (!document.getElementById('previewModal')) {
+          document.removeEventListener('keydown', onKey);
+          return;
+        }
+        if (e.key === 'Escape') { 
+          if (modal.parentNode) document.body.removeChild(modal); 
+          document.removeEventListener('keydown', onKey); 
+        } else if (e.key === 'ArrowLeft' && hasPrev && document.activeElement !== inputEl) {
+          showPreviewModal(idx - 1);
+          document.removeEventListener('keydown', onKey);
+        } else if (e.key === 'ArrowRight' && hasNext && document.activeElement !== inputEl) {
+          showPreviewModal(idx + 1);
+          document.removeEventListener('keydown', onKey);
+        }
+      }
+      document.addEventListener('keydown', onKey);
       document.body.appendChild(modal);
     }
 
-    // 両方のリセットボタンにイベントを紐付ける
     dom.btnResetAlls.forEach(function(btn) {
       btn.addEventListener('click', function() {
-        state.pdfDoc = null; state.pages = []; state.selectedPages = []; state.currentWorkPage = 0; state.scale = 2;
-        resetPageSelection(); state.extractedImages = []; renderExtractedList();
+        state.pdfDoc = null; state.pages = []; state.selectedPages = []; state.currentWorkPage = 0; state.scale = 4;
+        resetPageSelection(); state.extractedImages = []; state.collapsedGroups = {}; renderExtractedList();
         
-        // ボタン設定群も初期状態に戻す
-        state.selectionMode = 'headerOnly'; state.selectMethod = 'auto'; state.headerPosition = 'left';
+        state.selectionMode = 'headerOnly'; state.selectMethod = 'auto'; state.headerPosition = 'left'; state.addBorder = true; 
         qs('#selectionModeGroup').querySelectorAll('button').forEach(function(b) { b.classList.toggle('active', b.dataset.value === 'headerOnly'); });
         qs('#selectMethodGroup').querySelectorAll('button').forEach(function(b) { b.classList.toggle('active', b.dataset.value === 'auto'); });
         qs('#headerPositionGroup').querySelectorAll('button').forEach(function(b) { b.classList.toggle('active', b.dataset.value === 'left'); });
+        if (dom.addBorderCheckbox) {
+          dom.addBorderCheckbox.checked = true;
+          var lbl = qs('#borderCheckboxLabel'), txt = qs('#borderCheckboxText');
+          if (lbl) lbl.classList.add('active');
+          if (txt) txt.textContent = 'あり';
+        }
         
         dom.pdfInput.value = ''; 
         dom.pageThumbnails.innerHTML = ''; dom.btnDownloadAll.disabled = true;
@@ -1454,11 +1774,16 @@
     dom.btnDownloadAll.onclick = function() {
       if (state.extractedImages.length === 0) return;
       if (state.extractedImages.length === 1) {
-        var a = document.createElement('a'); a.href = state.extractedImages[0].dataUrl; a.download = state.extractedImages[0].name + '.png'; document.body.appendChild(a); a.click(); document.body.removeChild(a); return;
+        var a = document.createElement('a'); a.href = state.extractedImages[0].dataUrl; 
+        a.download = state.extractedImages[0].name + '.jpg'; 
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); return;
       }
       showToast('ZIPファイルを作成中...');
       var zip = new JSZip();
-      for (var i = 0; i < state.extractedImages.length; i++) zip.file(state.extractedImages[i].name + '.png', state.extractedImages[i].dataUrl.split(',')[1], { base64: true });
+      for (var i = 0; i < state.extractedImages.length; i++) {
+        var img = state.extractedImages[i];
+        zip.folder(img.listName).file(img.name + '.jpg', img.dataUrl.split(',')[1], { base64: true });
+      }
       zip.generateAsync({type: 'base64'}).then(function(b64) {
         var a = document.createElement('a'); a.href = 'data:application/zip;base64,' + b64; a.download = '抽出画像.zip'; document.body.appendChild(a); a.click(); setTimeout(function() { document.body.removeChild(a); }, 500); showToast('ダウンロード完了');
       }).catch(function(err) { showToast('ZIP作成失敗: ' + err.message); });
