@@ -2,18 +2,14 @@
 import {
 	state,
 	dom,
-	qs,
 	showToast,
 	showStep,
 	getCurrentListName,
 	getNextSeqNum,
 	renumberImages,
 	sanitizeFileBaseName,
-	resetPageSelection,
-	resetWorkState,
 	clearAllOverlays,
 	toCanvasCoords,
-	overlayToCanvasPoint,
 	applyZoomTransform,
 	_renderScale,
 	setRenderScale
@@ -143,7 +139,7 @@ export function clusterLines(lines, gap) {
 	return clusters;
 }
 
-export function detectLines(region) {
+export async function detectLines(region) {
 	let threshold = parseInt(dom.gridThreshold.value, 10);
 	let minLen = parseInt(dom.minLineLen.value, 10);
 
@@ -155,8 +151,31 @@ export function detectLines(region) {
 
 	minLen = Math.min(minLen, Math.max(rw, rh));
 
-	const ctx = dom.pdfCanvas.getContext('2d', { willReadFrequently: true });
-	const imgData = ctx.getImageData(rx, ry, rw, rh);
+	// PDF + 編集アイテムを合成したtemp canvasで罫線検出
+	const _tc = document.createElement('canvas');
+	_tc.width = rw;
+	_tc.height = rh;
+	const _tctx = _tc.getContext('2d', { willReadFrequently: true });
+	_tctx.drawImage(dom.pdfCanvas, rx, ry, rw, rh, 0, 0, rw, rh);
+	const _pn = state.selectedPages ? state.selectedPages[state.currentWorkPage] : null;
+	const _eis = _pn ? (state.editItemsByPage[_pn] || []) : [];
+	for (const _it of _eis) {
+		const _ix = _it.x - rx, _iy = _it.y - ry;
+		if (_ix + _it.w <= 0 || _iy + _it.h <= 0 || _ix >= rw || _iy >= rh) continue;
+		if (_it.type === 'image' && _it.dataUrl) {
+			const _im = new Image();
+			await new Promise((_rv) => { _im.onload = _rv; _im.onerror = _rv; _im.src = _it.dataUrl; });
+			_tctx.drawImage(_im, _ix, _iy, _it.w, _it.h);
+		} else if (_it.type === 'text' && _it.text) {
+			_tctx.save();
+			_tctx.font = '700 ' + (_it.fontSize || 24) + 'px "Noto Sans JP", sans-serif';
+			_tctx.fillStyle = _it.color || '#111827';
+			_tctx.textBaseline = 'middle';
+			_tctx.fillText(_it.text, _ix + 8, _iy + _it.h / 2);
+			_tctx.restore();
+		}
+	}
+	const imgData = _tctx.getImageData(0, 0, rw, rh);
 	const d = imgData.data;
 	const w = rw;
 	const h = rh;
@@ -430,53 +449,68 @@ export function combineWithHeaderRow(hCol, hRow, tgt, pos, cnr) {
 }
 
 // ===== Text extraction =====
-export async function extractTextFromRegion(pageNum, regionOverlay) {
+export async function extractEdgeTextFromRegion(pageNum, regionOverlay, position = 'top') {
 	if (!state.pdfDoc) return '';
-
 	const page = await state.pdfDoc.getPage(pageNum);
 	const vp = page.getViewport({ scale: _renderScale });
 	const tc = await page.getTextContent();
 	const items = tc.items || [];
-
 	const cr = toCanvasCoords(regionOverlay);
 	const rx = cr.x;
 	const ry = cr.y;
 	const rw = cr.w;
 	const rh = cr.h;
-
 	const hitTexts = [];
-
 	for (let i = 0; i < items.length; i++) {
 		const it = items[i];
 		if (!it.str) continue;
-
 		const tx = pdfjsLib.Util.transform(vp.transform, it.transform);
 		const x = tx[4];
 		const y = tx[5];
 		const h = Math.hypot(tx[2], tx[3]);
 		const w = it.width || Math.hypot(tx[0], tx[1]);
-
-		const box = { x, y: y - h, w, h: h * 1.2 };
-
+		const box = { x, y: y - h, w, h: h * 1.2, right: x + w, bottom: y - h + h * 1.2 };
 		const intersects = !(
 			box.x + box.w < rx ||
 			box.x > rx + rw ||
 			box.y + box.h < ry ||
 			box.y > ry + rh
 		);
-
-		if (intersects) hitTexts.push({ str: it.str, x: box.x, y: box.y });
+		if (intersects) hitTexts.push({ str: it.str, x: box.x, y: box.y, right: box.right, bottom: box.bottom });
 	}
-
-	hitTexts.sort((a, b) => {
-		const dy = a.y - b.y;
-		if (Math.abs(dy) > 5) return dy;
-		return a.x - b.x;
-	});
-
-	return hitTexts.map((t) => t.str).join(' ');
+	if (hitTexts.length === 0) return '';
+	let filtered = [];
+	if (position === 'bottom') {
+		const bottomY = Math.max(...hitTexts.map((t) => t.bottom));
+		filtered = hitTexts
+			.filter((t) => Math.abs(t.bottom - bottomY) <= 5)
+			.sort((a, b) => a.x - b.x);
+	} else if (position === 'left') {
+		const leftX = Math.min(...hitTexts.map((t) => t.x));
+		filtered = hitTexts
+			.filter((t) => Math.abs(t.x - leftX) <= 5)
+			.sort((a, b) => {
+				const dy = a.y - b.y;
+				if (Math.abs(dy) > 5) return dy;
+				return a.x - b.x;
+			});
+	} else if (position === 'right') {
+		const rightX = Math.max(...hitTexts.map((t) => t.right));
+		filtered = hitTexts
+			.filter((t) => Math.abs(t.right - rightX) <= 5)
+			.sort((a, b) => {
+				const dy = a.y - b.y;
+				if (Math.abs(dy) > 5) return dy;
+				return a.x - b.x;
+			});
+	} else {
+		const topY = Math.min(...hitTexts.map((t) => t.y));
+		filtered = hitTexts
+			.filter((t) => Math.abs(t.y - topY) <= 5)
+			.sort((a, b) => a.x - b.x);
+	}
+	return filtered.map((t) => t.str).join(' ');
 }
-
 export async function extractDrawingName(pageNum) {
 	try {
 		const page = await state.pdfDoc.getPage(pageNum);
@@ -678,7 +712,8 @@ export async function renderWorkPage() {
 		viewport: vp
 	}).promise;
 
-	state.scale = (dom.canvasContainer.clientHeight - 4) / (vp.height / 4);
+	reapplyCropOperations();
+	state.scale = (dom.canvasContainer.clientHeight - 4) / (dom.pdfCanvas.height / _renderScale);
 	applyZoomTransform(drawUserLines, redrawState);
 	clearAllOverlays();
 	redrawState();
@@ -689,12 +724,77 @@ export async function renderWorkPage() {
 	dom.btnNextWork.disabled = state.currentWorkPage >= state.selectedPages.length - 1;
 }
 
+function createRegionCanvas(region, { fillWhite = false } = {}) {
+	const cr = toCanvasCoords(region);
+	const canvas = document.createElement('canvas');
+	canvas.width = Math.round(cr.w);
+	canvas.height = Math.round(cr.h);
+	const ctx = canvas.getContext('2d', { willReadFrequently: true });
+	if (fillWhite) {
+		ctx.fillStyle = '#ffffff';
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+	}
+	ctx.drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, canvas.width, canvas.height);
+	return canvas;
+}
+async function compositeEditItemsOnCanvas(canvas, regionOverlay) {
+	// 現在のページの編集アイテムを取得
+	const pageNum = state.selectedPages[state.currentWorkPage];
+	const items = state.editItemsByPage[pageNum];
+	if (!items || items.length === 0) return;
+
+	const cr = toCanvasCoords(regionOverlay);
+	const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+	for (const item of items) {
+		// アイテムが抽出範囲と重なるか判定
+		const ix = item.x - cr.x;
+		const iy = item.y - cr.y;
+		if (ix + item.w <= 0 || iy + item.h <= 0 || ix >= canvas.width || iy >= canvas.height) continue;
+
+		if (item.type === 'image' && item.dataUrl) {
+			const img = new Image();
+			await new Promise((resolve) => {
+				img.onload = resolve;
+				img.onerror = resolve;
+				img.src = item.dataUrl;
+			});
+			ctx.drawImage(img, ix, iy, item.w, item.h);
+		} else if (item.type === 'text' && item.text) {
+			ctx.save();
+			ctx.font = '700 ' + (item.fontSize || 24) + 'px "Noto Sans JP", sans-serif';
+			ctx.fillStyle = item.color || '#111827';
+			ctx.textBaseline = 'middle';
+			ctx.fillText(item.text, ix + 8, iy + item.h / 2);
+			ctx.restore();
+		}
+	}
+}
+async function getSanitizedRegionText(region, position = 'top') {
+	const pageNum = state.selectedPages[state.currentWorkPage];
+	let txt = await extractEdgeTextFromRegion(pageNum, region, position);
+	txt = sanitizeFileBaseName(txt);
+	return txt.replace(/\b(\S+)(\s+\1)+\b/g, '$1');
+}
+function buildCombinedTargetCanvas(targetCanvas) {
+	const headerCanvas = state.headerImageData;
+	if (state.headerRowImageData) {
+		return combineWithHeaderRow(
+			headerCanvas,
+			state.headerRowImageData,
+			targetCanvas,
+			state.headerPosition,
+			state.fixedHeaderImageData
+		);
+	}
+	return combineImages(headerCanvas, targetCanvas, state.headerPosition);
+}
 // ===== Selection confirm =====
-function pushExtractedImage(dataUrl) {
+export function pushExtractedImage(dataUrl, forcedBaseName = '') {
 	const ln = getCurrentListName();
 	const seq = getNextSeqNum(ln);
 	const fallbackName = ln + '_' + String(seq || 1).padStart(3, '0');
-	const baseName = (state.headerFileBaseName || '').trim();
+	const baseName = (forcedBaseName || state.headerFileBaseName || '').trim();
 	const finalName = baseName || fallbackName;
 
 	state.collapsedGroups[ln] = false;
@@ -706,6 +806,7 @@ function pushExtractedImage(dataUrl) {
 		name: finalName,
 		customName: !!baseName,
 		listName: ln,
+		floorId: state.currentFloorId,
 		dataUrl
 	});
 
@@ -713,18 +814,15 @@ function pushExtractedImage(dataUrl) {
 	showToast(finalName + ' を抽出しました');
 }
 
-export function confirmHeaderRegion(r) {
+export async function confirmHeaderRegion(r) {
 	if (state.headerRegion) state.historyRegions.push({ type: 'header', r: state.headerRegion });
 	if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
 
 	state.headerRegion = r;
-	state.headerCells = [];
 	state.targetRegion = null;
-	state.targetCells = [];
 
 	if (state.selectMethod === 'auto') {
-		const cells = linesToCells(detectLines(r));
-		state.headerCells = cells;
+		const cells = linesToCells(await detectLines(r));
 		if (cells.length > 0) r = cellsBoundingBox(cells);
 	}
 
@@ -732,15 +830,9 @@ export function confirmHeaderRegion(r) {
 	clearAllOverlays();
 	redrawState();
 
-	const tc = document.createElement('canvas');
-	const cr = toCanvasCoords(r);
-	tc.width = Math.round(cr.w);
-	tc.height = Math.round(cr.h);
-	tc.getContext('2d', { willReadFrequently: true })
-		.drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+	const tc = createRegionCanvas(r);
 
 	state.headerImageData = tc;
-	state.headerRect = r;
 
 	dom.btnClearHeader.disabled = false;
 	dom.btnSelectTarget.disabled = false;
@@ -757,27 +849,20 @@ export function confirmHeaderRegion(r) {
 	updateModeButtons();
 }
 
-export function confirmHeaderRowRegion(r) {
+export async function confirmHeaderRowRegion(r) {
 	if (state.headerRowRegion) state.historyRegions.push({ type: 'headerRow', r: state.headerRowRegion });
 	if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
 
 	state.targetRegion = null;
-	state.targetCells = [];
 
 	if (state.selectMethod === 'auto') {
-		const cells = linesToCells(detectLines(r));
-		state.headerRowCells = cells;
+		const cells = linesToCells(await detectLines(r));
 		if (cells.length > 0) r = cellsBoundingBox(cells);
 	}
 
 	state.headerRowRegion = r;
 
-	const tc = document.createElement('canvas');
-	const cr = toCanvasCoords(r);
-	tc.width = Math.round(cr.w);
-	tc.height = Math.round(cr.h);
-	tc.getContext('2d', { willReadFrequently: true })
-		.drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+	const tc = createRegionCanvas(r);
 	state.headerRowImageData = tc;
 
 	clearAllOverlays();
@@ -785,9 +870,7 @@ export function confirmHeaderRowRegion(r) {
 
 	(async () => {
 		try {
-			const pageNum = state.selectedPages[state.currentWorkPage];
-			let txt = await extractTextFromRegion(pageNum, r);
-			txt = sanitizeFileBaseName(txt);
+			const txt = await getSanitizedRegionText(r);
 
 			if (!txt) {
 				state.headerFileBaseName = '';
@@ -808,21 +891,16 @@ export function confirmHeaderRowRegion(r) {
 	updateModeButtons();
 }
 
-export function confirmFixedHeaderRegion(r) {
+export async function confirmFixedHeaderRegion(r) {
 	if (state.selectMethod === 'auto') {
-		const cells = linesToCells(detectLines(r));
+		const cells = linesToCells(await detectLines(r));
 		if (cells.length > 0) r = cellsBoundingBox(cells);
 	}
 
 	if (state.fixedHeaderRegion) state.historyRegions.push({ type: 'fixedHeader', r: state.fixedHeaderRegion });
 	state.fixedHeaderRegion = r;
 
-	const tc = document.createElement('canvas');
-	const cr = toCanvasCoords(r);
-	tc.width = Math.round(cr.w);
-	tc.height = Math.round(cr.h);
-	tc.getContext('2d', { willReadFrequently: true })
-		.drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+	const tc = createRegionCanvas(r);
 
 	state.fixedHeaderImageData = tc;
 	clearAllOverlays();
@@ -833,36 +911,33 @@ export function confirmFixedHeaderRegion(r) {
 	showToast('固定ヘッダー確定。見出しを選択してください');
 }
 
-export function confirmTargetRegion(r) {
+export async function confirmTargetRegion(r) {
 	if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
 
 	if (state.selectMethod === 'auto') {
-		const cells = linesToCells(detectLines(r));
-		state.targetCells = cells;
+		const cells = linesToCells(await detectLines(r));
 		if (cells.length > 0) r = cellsBoundingBox(cells);
 	}
 
 	state.targetRegion = r;
 
-	const tc = document.createElement('canvas');
-	const cr = toCanvasCoords(r);
-	tc.width = Math.round(cr.w);
-	tc.height = Math.round(cr.h);
-
-	const ctx = tc.getContext('2d', { willReadFrequently: true });
-	ctx.fillStyle = '#ffffff';
-	ctx.fillRect(0, 0, tc.width, tc.height);
-	ctx.drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+	const tc = createRegionCanvas(r, { fillWhite: true });
+	await compositeEditItemsOnCanvas(tc, r);
 
 	clearAllOverlays();
 	redrawState();
 
-	const hdr = state.headerImageData || cropCell(state.headerRegion);
-	const combined = state.headerRowImageData
-		? combineWithHeaderRow(hdr, state.headerRowImageData, tc, state.headerPosition, state.fixedHeaderImageData)
-		: combineImages(hdr, tc, state.headerPosition);
+	const combined = buildCombinedTargetCanvas(tc);
 
-	pushExtractedImage(combined.toDataURL('image/jpeg', 0.95));
+	let targetTopFileBaseName = '';
+	if (state.selectionMode === 'headerOnly') {
+		try {
+			targetTopFileBaseName = await getSanitizedRegionText(r);
+		} catch (err) {
+			console.warn('target top text extraction failed', err);
+		}
+	}
+	pushExtractedImage(combined.toDataURL('image/jpeg', 0.95), targetTopFileBaseName);
 
 	if (state.selectionMode === 'withHeader') {
 		state.mode = 'headerRow';
@@ -870,64 +945,223 @@ export function confirmTargetRegion(r) {
 	}
 }
 
-export function confirmManualTarget(r) {
+export async function confirmManualTarget(r) {
 	if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
 	state.targetRegion = r;
 
-	const tc = document.createElement('canvas');
-	const cr = toCanvasCoords(r);
-	tc.width = Math.round(cr.w);
-	tc.height = Math.round(cr.h);
+	const tc = createRegionCanvas(r, { fillWhite: true });
+	await compositeEditItemsOnCanvas(tc, r);
 
-	const ctx = tc.getContext('2d', { willReadFrequently: true });
-	ctx.fillStyle = '#ffffff';
-	ctx.fillRect(0, 0, tc.width, tc.height);
-	ctx.drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+	const combined = buildCombinedTargetCanvas(tc);
 
-	const hdr = state.headerImageData || cropCell(state.headerRegion);
-	const combined = state.headerRowImageData
-		? combineWithHeaderRow(hdr, state.headerRowImageData, tc, state.headerPosition, state.fixedHeaderImageData)
-		: combineImages(hdr, tc, state.headerPosition);
-
-	pushExtractedImage(combined.toDataURL('image/jpeg', 0.95));
+	let targetTopFileBaseName = '';
+	if (state.selectionMode === 'headerOnly') {
+		try {
+			targetTopFileBaseName = await getSanitizedRegionText(r);
+		} catch (err) {
+			console.warn('target top text extraction failed', err);
+		}
+	}
+	pushExtractedImage(combined.toDataURL('image/jpeg', 0.95), targetTopFileBaseName);
 
 	clearAllOverlays();
 	redrawState();
 }
 
-export function confirmSingleTarget(r) {
+export async function confirmSingleTarget(r) {
 	if (state.targetRegion) state.historyRegions.push({ type: 'target', r: state.targetRegion });
 
 	if (state.selectMethod === 'auto') {
-		const cells = linesToCells(detectLines(r));
+		const cells = linesToCells(await detectLines(r));
 		if (cells.length > 0) r = cellsBoundingBox(cells);
 	}
 
 	state.targetRegion = r;
 
-	const tc = document.createElement('canvas');
-	const cr = toCanvasCoords(r);
-	tc.width = Math.round(cr.w);
-	tc.height = Math.round(cr.h);
-
-	const ctx = tc.getContext('2d', { willReadFrequently: true });
-	ctx.fillStyle = '#ffffff';
-	ctx.fillRect(0, 0, tc.width, tc.height);
-	ctx.drawImage(dom.pdfCanvas, cr.x, cr.y, cr.w, cr.h, 0, 0, tc.width, tc.height);
+	const tc = createRegionCanvas(r, { fillWhite: true });
+	await compositeEditItemsOnCanvas(tc, r);
 
 	if (state.addBorder) {
+		const ctx = tc.getContext('2d', { willReadFrequently: true });
 		ctx.strokeStyle = '#000000';
 		ctx.lineWidth = 2;
 		ctx.strokeRect(1, 1, tc.width - 2, tc.height - 2);
 	}
 
-	pushExtractedImage(tc.toDataURL('image/jpeg', 0.95));
+	let singleExtractFileBaseName = '';
+	if (state.singleExtractReadText) {
+		try {
+			singleExtractFileBaseName = await getSanitizedRegionText(r, state.singleExtractTextPosition || 'top');
+		} catch (err) {
+			console.warn('single target text extraction failed', err);
+		}
+	}
+	pushExtractedImage(tc.toDataURL('image/jpeg', 0.95), singleExtractFileBaseName);
 
 	clearAllOverlays();
 	redrawState();
 	dom.btnClearHeader.disabled = false;
 }
 
+// ===== Undo =====
+export function updateUndoButton() {
+	if (dom.btnUndo) dom.btnUndo.disabled = state.undoStack.length === 0;
+}
+export function renderCropPreviewBand() {
+	if (!dom.selectionOverlay) return;
+	let band = dom.selectionOverlay.querySelector('.crop-preview-band');
+	if (!state._cropPreview) {
+		if (band) band.remove();
+		return;
+	}
+	const op = state._cropPreview;
+	const r = state.scale / _renderScale;
+	if (!band) {
+		band = document.createElement('div');
+		band.className = 'crop-preview-band';
+		Object.assign(band.style, { position: 'absolute', pointerEvents: 'none', zIndex: '30', background: 'rgba(239,68,68,0.25)' });
+		dom.selectionOverlay.appendChild(band);
+	}
+	const ow = dom.selectionOverlay.clientWidth, oh = dom.selectionOverlay.clientHeight;
+	if (op.direction === 'horizontal') {
+		const oy1 = op.y1 * r, oy2 = op.y2 * r;
+		Object.assign(band.style, { left: '0', top: oy1 + 'px', width: ow + 'px', height: (oy2 - oy1) + 'px', borderTop: '2px dashed #ef4444', borderBottom: '2px dashed #ef4444', borderLeft: 'none', borderRight: 'none' });
+	} else {
+		const ox1 = op.x1 * r, ox2 = op.x2 * r;
+		Object.assign(band.style, { left: ox1 + 'px', top: '0', width: (ox2 - ox1) + 'px', height: oh + 'px', borderLeft: '2px dashed #ef4444', borderRight: '2px dashed #ef4444', borderTop: 'none', borderBottom: 'none' });
+	}
+}
+export function pushUndoSnapshot() {
+	const pageNum = state.selectedPages[state.currentWorkPage];
+	if (!pageNum) return;
+	state.undoStack.push({
+		pageNum,
+		editItems: JSON.parse(JSON.stringify(state.editItemsByPage[pageNum] || [])),
+		userLines: JSON.parse(JSON.stringify(state.userLinesByPage[pageNum] || [])),
+		cropOps: JSON.parse(JSON.stringify(state.cropOperationsByPage[pageNum] || []))
+	});
+	if (state.undoStack.length > 20) state.undoStack.shift();
+	updateUndoButton();
+}
+export async function performUndo() {
+	if (state.undoStack.length === 0) { showToast('元に戻す履歴がありません'); return; }
+	const entry = state.undoStack.pop();
+	const _cropChanged = (state.cropOperationsByPage[entry.pageNum] || []).length !== (entry.cropOps || []).length;
+	state.editItemsByPage[entry.pageNum] = entry.editItems;
+	state.userLinesByPage[entry.pageNum] = entry.userLines;
+	state.cropOperationsByPage[entry.pageNum] = entry.cropOps;
+	if (state.selectedPages[state.currentWorkPage] === entry.pageNum) {
+		state.editItems = state.editItemsByPage[entry.pageNum];
+		state.userLines = state.userLinesByPage[entry.pageNum];
+		state._cropPreview = null;
+		dom.selectionOverlay?.querySelector('.crop-preview-band')?.remove();
+		if (dom.btnCropExec) dom.btnCropExec.style.display = 'none';
+		if (_cropChanged) {
+			await renderWorkPage();
+		} else {
+			drawUserLines();
+		}
+	}
+	updateUndoButton();
+	showToast('元に戻しました');
+}
+// ===== Crop tool =====
+export function applyCropToCanvas(op) {
+	const canvas = dom.pdfCanvas;
+	const ctx = canvas.getContext('2d', { willReadFrequently: true });
+	if (op.direction === 'horizontal') {
+		const y1 = Math.max(0, Math.min(op.y1, canvas.height));
+		const y2 = Math.max(0, Math.min(op.y2, canvas.height));
+		const cutH = y2 - y1;
+		if (cutH <= 0) return;
+		const tmp = document.createElement('canvas');
+		tmp.width = canvas.width;
+		tmp.height = canvas.height - cutH;
+		const tc = tmp.getContext('2d', { willReadFrequently: true });
+		if (y1 > 0) tc.drawImage(canvas, 0, 0, canvas.width, y1, 0, 0, canvas.width, y1);
+		if (y2 < canvas.height) tc.drawImage(canvas, 0, y2, canvas.width, canvas.height - y2, 0, y1, canvas.width, canvas.height - y2);
+		canvas.height = tmp.height;
+		ctx.drawImage(tmp, 0, 0);
+	} else {
+		const x1 = Math.max(0, Math.min(op.x1, canvas.width));
+		const x2 = Math.max(0, Math.min(op.x2, canvas.width));
+		const cutW = x2 - x1;
+		if (cutW <= 0) return;
+		const tmp = document.createElement('canvas');
+		tmp.width = canvas.width - cutW;
+		tmp.height = canvas.height;
+		const tc = tmp.getContext('2d', { willReadFrequently: true });
+		if (x1 > 0) tc.drawImage(canvas, 0, 0, x1, canvas.height, 0, 0, x1, canvas.height);
+		if (x2 < canvas.width) tc.drawImage(canvas, x2, 0, canvas.width - x2, canvas.height, x1, 0, canvas.width - x2, canvas.height);
+		canvas.width = tmp.width;
+		ctx.drawImage(tmp, 0, 0);
+	}
+}
+export function shiftCoordsAfterCrop(op) {
+	const pageNum = state.selectedPages[state.currentWorkPage];
+	const items = state.editItemsByPage[pageNum] || [];
+	const lines = state.userLines || [];
+	if (op.direction === 'horizontal') {
+		const cut = op.y2 - op.y1;
+		for (let i = items.length - 1; i >= 0; i--) {
+			const it = items[i];
+			if (it.y + it.h <= op.y1) continue;
+			if (it.y >= op.y2) { it.y -= cut; continue; }
+			items.splice(i, 1);
+		}
+		for (let i = lines.length - 1; i >= 0; i--) {
+			const L = lines[i];
+			if (Math.max(L.y1, L.y2) <= op.y1) continue;
+			if (Math.min(L.y1, L.y2) >= op.y2) { L.y1 -= cut; L.y2 -= cut; continue; }
+			lines.splice(i, 1);
+		}
+	} else {
+		const cut = op.x2 - op.x1;
+		for (let i = items.length - 1; i >= 0; i--) {
+			const it = items[i];
+			if (it.x + it.w <= op.x1) continue;
+			if (it.x >= op.x2) { it.x -= cut; continue; }
+			items.splice(i, 1);
+		}
+		for (let i = lines.length - 1; i >= 0; i--) {
+			const L = lines[i];
+			if (Math.max(L.x1, L.x2) <= op.x1) continue;
+			if (Math.min(L.x1, L.x2) >= op.x2) { L.x1 -= cut; L.x2 -= cut; continue; }
+			lines.splice(i, 1);
+		}
+	}
+}
+export function executeCrop(op) {
+	pushUndoSnapshot();
+	applyCropToCanvas(op);
+	shiftCoordsAfterCrop(op);
+	const pageNum = state.selectedPages[state.currentWorkPage];
+	if (!state.cropOperationsByPage[pageNum]) state.cropOperationsByPage[pageNum] = [];
+	state.cropOperationsByPage[pageNum].push(op);
+	if (dom.lineCanvas) {
+		dom.lineCanvas.width = dom.pdfCanvas.width;
+		dom.lineCanvas.height = dom.pdfCanvas.height;
+	}
+	saveUserLinesForCurrentPage();
+	applyZoomTransform(drawUserLines, redrawState);
+	state._cropPreview = null;
+	dom.selectionOverlay?.querySelector('.crop-preview-band')?.remove();
+	if (dom.btnCropExec) dom.btnCropExec.style.display = 'none';
+	updateUndoButton();
+	showToast('切り取りました');
+}
+export function reapplyCropOperations() {
+	const pageNum = state.selectedPages[state.currentWorkPage];
+	const ops = state.cropOperationsByPage[pageNum];
+	if (!ops || ops.length === 0) return;
+	for (const op of ops) {
+		applyCropToCanvas(op);
+	}
+	if (dom.lineCanvas) {
+		dom.lineCanvas.width = dom.pdfCanvas.width;
+		dom.lineCanvas.height = dom.pdfCanvas.height;
+	}
+}
 // ===== Line tools =====
 export function saveUserLinesForCurrentPage() {
 	const pageNum = state.selectedPages[state.currentWorkPage];
@@ -1112,6 +1346,102 @@ export function drawUserLines(opts) {
 }
 
 // ===== Extracted list =====
+function openPreviewModal(startIndex) {
+	if (!state.extractedImages || !state.extractedImages.length) return;
+	let currentIndex = startIndex;
+	const oldModal = document.querySelector('.preview-modal');
+	if (oldModal) oldModal.remove();
+	const modal = document.createElement('div');
+	modal.className = 'preview-modal';
+	const closeBtn = document.createElement('button');
+	closeBtn.className = 'preview-close-btn';
+	closeBtn.innerHTML = '<span class="material-symbols-rounded">close</span>';
+	const img = document.createElement('img');
+	img.style.maxWidth = '90vw';
+	img.style.maxHeight = '78vh';
+	const nameWrap = document.createElement('div');
+	nameWrap.className = 'preview-modal-name';
+	nameWrap.style.marginTop = '16px';
+	nameWrap.innerHTML = '<input type="text" class="preview-name-input"> <span>.jpg</span>';
+	const nameInput = nameWrap.querySelector('.preview-name-input');
+	const nav = document.createElement('div');
+	nav.style.display = 'flex';
+	nav.style.alignItems = 'center';
+	nav.style.justifyContent = 'center';
+	nav.style.gap = '12px';
+	nav.style.marginTop = '16px';
+	nav.innerHTML =
+		'<button class="btn btn-icon preview-nav-btn" data-dir="prev"><span class="material-symbols-rounded">chevron_left</span></button>' +
+		'<div class="badge-info"><span class="material-symbols-rounded">imagesmode</span><span class="preview-index-label"></span></div>' +
+		'<button class="btn btn-icon preview-nav-btn" data-dir="next"><span class="material-symbols-rounded">chevron_right</span></button>';
+	const prevBtn = nav.querySelector('[data-dir="prev"]');
+	const nextBtn = nav.querySelector('[data-dir="next"]');
+	const indexLabel = nav.querySelector('.preview-index-label');
+	function renderPreview() {
+		const item = state.extractedImages[currentIndex];
+		if (!item) return;
+		img.src = item.dataUrl;
+		nameInput.value = item.name || '';
+		indexLabel.textContent = `${currentIndex + 1} / ${state.extractedImages.length}`;
+		prevBtn.disabled = currentIndex <= 0;
+		nextBtn.disabled = currentIndex >= state.extractedImages.length - 1;
+	}
+	function closeModal() {
+		document.removeEventListener('keydown', onKeydown);
+		modal.remove();
+	}
+	function onKeydown(e) {
+		if (e.key === 'Escape') {
+			closeModal();
+			return;
+		}
+		if (e.key === 'ArrowLeft' && currentIndex > 0) {
+			currentIndex--;
+			renderPreview();
+		}
+		if (e.key === 'ArrowRight' && currentIndex < state.extractedImages.length - 1) {
+			currentIndex++;
+			renderPreview();
+		}
+	}
+	closeBtn.addEventListener('click', closeModal);
+	modal.addEventListener('click', (e) => {
+		if (e.target === modal) closeModal();
+	});
+	document.addEventListener('keydown', onKeydown);
+	prevBtn.addEventListener('click', () => {
+		if (currentIndex <= 0) return;
+		currentIndex--;
+		renderPreview();
+	});
+	nextBtn.addEventListener('click', () => {
+		if (currentIndex >= state.extractedImages.length - 1) return;
+		currentIndex++;
+		renderPreview();
+	});
+	nameInput.addEventListener('change', (e) => {
+		const item = state.extractedImages[currentIndex];
+		if (!item) return;
+		const newName = e.target.value.trim();
+		if (!newName) {
+			e.target.value = item.name || '';
+			return;
+		}
+		item.name = newName;
+		item.customName = true;
+		renderExtractedList(true);
+		renderPreview();
+	});
+	modal.appendChild(closeBtn);
+	modal.appendChild(img);
+	modal.appendChild(nameWrap);
+	modal.appendChild(nav);
+	document.body.appendChild(modal);
+	renderPreview();
+	nameInput.addEventListener('focus', (e) => {
+		e.target.select();
+	});
+}
 export function renderExtractedList(preventScroll) {
 	dom.extractedList.innerHTML = '';
 	dom.extractCount.textContent = '(' + state.extractedImages.length + ')';
@@ -1120,9 +1450,15 @@ export function renderExtractedList(preventScroll) {
 
 	const grouped = {};
 	state.extractedImages.forEach((img, i) => {
-		if (!grouped[img.listName]) grouped[img.listName] = [];
-		grouped[img.listName].push({ img, index: i });
+		if (!grouped[img.listName]) grouped[img.listName] = {};
+		const fid = img.floorId || 'default';
+		if (!grouped[img.listName][fid]) grouped[img.listName][fid] = [];
+		grouped[img.listName][fid].push({ img, index: i });
 	});
+	const getFloorName = (fid) => {
+		const f = state.floors.find((fl) => fl.id === fid);
+		return f ? f.name : '未分類';
+	};
 
 	for (const listName in grouped) {
 		const groupContainer = document.createElement('div');
@@ -1130,22 +1466,76 @@ export function renderExtractedList(preventScroll) {
 
 		const header = document.createElement('div');
 		header.className = 'group-header';
+		const listTotal = Object.values(grouped[listName]).reduce((s, a) => s + a.length, 0);
 		header.innerHTML =
-			`<span>${listName} <span style="color:var(--text-muted);font-weight:normal;font-size:0.75rem;">(${grouped[listName].length})</span></span>` +
+			`<span>${listName} <span style="color:var(--text-muted);font-weight:normal;font-size:0.75rem;">(${listTotal})</span></span>` +
 			`<span class="material-symbols-rounded group-toggle-icon ${isCollapsed ? 'collapsed' : ''}">expand_more</span>`;
 
 		header.addEventListener('click', () => {
 			state.collapsedGroups[listName] = !state.collapsedGroups[listName];
 			renderExtractedList(true);
 		});
+		header.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; header.classList.add('drag-over'); });
+		header.addEventListener('dragleave', () => { header.classList.remove('drag-over'); });
+		header.addEventListener('drop', (e) => {
+			e.preventDefault();
+			header.classList.remove('drag-over');
+			const idx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+			if (isNaN(idx) || !state.extractedImages[idx]) return;
+			const im = state.extractedImages[idx];
+			if (im.listName === listName) return;
+			im.listName = listName;
+			renderExtractedList(true);
+			showToast(listName + ' に移動しました');
+		});
 
-		const contentGrid = document.createElement('div');
-		contentGrid.className = 'group-content' + (isCollapsed ? ' collapsed' : '');
+		const listContent = document.createElement('div');
+		listContent.className = 'group-content' + (isCollapsed ? ' collapsed' : '');
+		const floorIds = Object.keys(grouped[listName]);
+		for (const fid of floorIds) {
+			const floorName = getFloorName(fid);
+			const floorKey = listName + ':' + fid;
+			const floorCollapsed = state.collapsedFloors[floorKey];
+			const floorHeader = document.createElement('div');
+			floorHeader.className = 'floor-subgroup-header';
+			floorHeader.innerHTML =
+				`<span>${floorName} <span style="color:var(--text-muted);font-weight:normal;font-size:0.7rem;">(${grouped[listName][fid].length})</span></span>` +
+				`<span class="material-symbols-rounded group-toggle-icon ${floorCollapsed ? 'collapsed' : ''}" style="font-size:1rem;">expand_more</span>`;
+			floorHeader.addEventListener('click', (e) => {
+				e.stopPropagation();
+				state.collapsedFloors[floorKey] = !state.collapsedFloors[floorKey];
+				renderExtractedList(true);
+			});
+			floorHeader.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; floorHeader.classList.add('drag-over'); });
+			floorHeader.addEventListener('dragleave', () => { floorHeader.classList.remove('drag-over'); });
+			floorHeader.addEventListener('drop', (e) => {
+				e.preventDefault();
+				floorHeader.classList.remove('drag-over');
+				const idx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+				if (isNaN(idx) || !state.extractedImages[idx]) return;
+				const im = state.extractedImages[idx];
+				if (im.floorId === fid && im.listName === listName) return;
+				im.floorId = fid;
+				im.listName = listName;
+				renderExtractedList(true);
+				showToast(getFloorName(fid) + ' に移動しました');
+			});
+			listContent.appendChild(floorHeader);
+			const contentGrid = document.createElement('div');
+			contentGrid.className = 'group-content' + (floorCollapsed ? ' collapsed' : '');
 
-		grouped[listName].forEach((item) => {
+		grouped[listName][fid].forEach((item) => {
 			const { img, index } = item;
 			const el = document.createElement('div');
 			el.className = 'extracted-item';
+			el.draggable = true;
+			el.dataset.imgIndex = index;
+			el.addEventListener('dragstart', (e) => {
+				e.dataTransfer.setData('text/plain', String(index));
+				e.dataTransfer.effectAllowed = 'move';
+				el.classList.add('dragging');
+			});
+			el.addEventListener('dragend', () => { el.classList.remove('dragging'); });
 
 			el.innerHTML =
 				`<img src="${img.dataUrl}">` +
@@ -1155,6 +1545,10 @@ export function renderExtractedList(preventScroll) {
 				`</div>` +
 				`<button class="del-btn" title="削除"><span class="material-symbols-rounded">close</span></button>`;
 
+			const previewImg = el.querySelector('img');
+			previewImg.addEventListener('click', () => {
+				openPreviewModal(index);
+			});
 			const nameInput = el.querySelector('.extracted-item-name-input');
 			nameInput.addEventListener('focus', (e) => {
 				e.target.select();
@@ -1183,8 +1577,10 @@ export function renderExtractedList(preventScroll) {
 			contentGrid.appendChild(el);
 		});
 
+			listContent.appendChild(contentGrid);
+		}
 		groupContainer.appendChild(header);
-		groupContainer.appendChild(contentGrid);
+		groupContainer.appendChild(listContent);
 		dom.extractedList.appendChild(groupContainer);
 	}
 
@@ -1203,4 +1599,12 @@ export function getDownloadFileName(img, index) {
 	base = base.replace(/[\\\/:\?"<>\|]/g, '').replace(/[\s.]+$/g, '').trim();
 	if (!base) base = 'image' + String(index + 1).padStart(3, '0');
 	return base;
+}
+// 罫線端点のカーソル判定
+export function getLineEndpointCursorType(canvasPt) {
+  const hit = hitTestUserLineEndpoint(canvasPt);
+  if (!hit) return null;
+  const L = state.userLines[hit.index];
+  const isHorizontal = Math.abs(L.x2 - L.x1) >= Math.abs(L.y2 - L.y1);
+  return isHorizontal ? 'ew-resize' : 'ns-resize';
 }

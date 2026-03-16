@@ -1,730 +1,591 @@
 // app.js
 import {
-	state,
-	dom,
-	qs,
-	showToast,
-	showStep,
-	setupToggleGroup,
-	getCurrentListName,
-	resetPageSelection,
-	resetWorkState,
-	overlayToCanvasPoint,
-	applyZoomTransform
+  state, dom, qs, showToast, showStep,
+  setupToggleGroup, getCurrentListName,
+  resetPageSelection, resetWorkState,
+  overlayToCanvasPoint, applyZoomTransform,
+  generateFloorId, getCurrentFloorName
 } from './core.js';
 
 import {
-	handleFile,
-	renderWorkPage,
-	renderExtractedList,
-	updatePageControls,
-	updateThumbnailStyles,
-	updateModeButtons,
-	redrawState,
-	getOverlayCoords,
-	calcRect,
-	drawRect,
-	confirmHeaderRegion,
-	confirmHeaderRowRegion,
-	confirmFixedHeaderRegion,
-	confirmTargetRegion,
-	confirmManualTarget,
-	confirmSingleTarget,
-	drawUserLines,
-	saveUserLinesForCurrentPage,
-	snapAxisAligned,
-	rectToLines,
-	hitTestUserLine,
-	hitTestUserLineEndpoint,
-	hitTestUserLinesInOverlayRect,
-	getDownloadFileName
+  handleFile, renderWorkPage, renderExtractedList,
+  updatePageControls, updateThumbnailStyles, updateModeButtons,
+  drawUserLines, getDownloadFileName,
+  executeCrop, pushUndoSnapshot, performUndo, updateUndoButton
 } from './pdf-workflow.js';
+
+import {
+  getViewportCenterCanvasPoint,
+  pasteEditClipboardAt, removeSelectedEditItem,
+  setEditTool, syncDrawToolUi, renderEditOverlay,
+  setupSelectedImageOverlayFrame, scheduleSelectedImageOverlayFrame,
+  syncPersistentCanvasImages, setupPersistentCanvasImageVisibility
+} from './edit-mode.js';
+
+import { setupCanvasInteractions } from './canvas-interactions.js';
 
 // ===== Settings popover =====
 if (dom.btnSettingsToggle) {
-	dom.btnSettingsToggle.addEventListener('click', (e) => {
-		e.stopPropagation();
-		dom.settingsPopover.classList.toggle('hidden');
-	});
+  dom.btnSettingsToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dom.settingsPopover.classList.toggle('hidden');
+  });
+}
+document.addEventListener('click', (e) => {
+  if (!dom.settingsPopover || !dom.btnSettingsToggle) return;
+  if (!dom.settingsPopover.contains(e.target) && e.target !== dom.btnSettingsToggle) {
+    dom.settingsPopover.classList.add('hidden');
+  }
+});
+
+// ===== UI sync =====
+function syncSelectionModeUi() {
+  const isGridMode = state.selectionMode === 'grid';
+  const isSingleMode = state.selectionMode === 'single';
+  const selectMethodItem = qs('#selectMethodGroup')?.closest('.setting-item');
+  if (selectMethodItem) selectMethodItem.style.display = isGridMode ? 'none' : 'flex';
+  const settingsWrap = dom.btnSettingsToggle?.parentElement;
+  if (settingsWrap) settingsWrap.style.display = isGridMode ? 'none' : 'flex';
+  if (dom.btnSettingsToggle) {
+    dom.btnSettingsToggle.disabled = isGridMode || state.selectMethod === 'manual';
+  }
+  if (dom.settingsPopover && isGridMode) {
+    dom.settingsPopover.classList.add('hidden');
+  }
+  const borderSettingItem = qs('#borderSettingItem');
+  if (borderSettingItem) borderSettingItem.style.display = 'flex';
+  if (dom.positionSettingItem) dom.positionSettingItem.style.display = isGridMode || isSingleMode ? 'none' : 'flex';
+  const lineStyleGroup = qs('#lineStyleGroup');
+  if (lineStyleGroup) lineStyleGroup.style.display = isGridMode ? 'inline-flex' : 'none';
+  if (dom.btnClearLines) dom.btnClearLines.style.display = isGridMode ? 'inline-flex' : 'none';
+  if (dom.btnUndo) dom.btnUndo.style.display = isGridMode ? 'inline-flex' : 'none';
 }
 
-document.addEventListener('click', (e) => {
-	if (!dom.settingsPopover || !dom.btnSettingsToggle) return;
-	if (!dom.settingsPopover.contains(e.target) && e.target !== dom.btnSettingsToggle) {
-		dom.settingsPopover.classList.add('hidden');
-	}
-});
+function updateLineToolsVisibility() {
+  const isGrid = state.selectionMode === 'grid';
+  const tg = qs('#drawToolGroup');
+  if (tg) tg.style.display = isGrid ? 'inline-flex' : 'none';
+  const styleGroup = qs('#lineStyleGroup');
+  if (styleGroup) styleGroup.style.display = isGrid ? 'inline-flex' : 'none';
+  if (dom.btnClearLines) dom.btnClearLines.style.display = isGrid ? 'inline-flex' : 'none';
+  if (!isGrid) {
+    state.selectedUserLineIndex = -1;
+    state._toolDrag = null;
+  }
+  if (dom.btnClearLines) dom.btnClearLines.disabled = (state.userLines.length === 0);
+  drawUserLines();
+}
+
+function applySelectionMode() {
+  const m = state.selectionMode;
+  const isSingle = m === 'single';
+  const isGrid = m === 'grid';
+  const isEdit = m === 'edit';
+  if (dom.singleExtractReadSettingItem) {
+    dom.singleExtractReadSettingItem.style.display = isSingle ? 'flex' : 'none';
+  }
+  if (dom.singleExtractTextPositionSettingItem) {
+    dom.singleExtractTextPositionSettingItem.style.display =
+      (isSingle && state.singleExtractReadText) ? 'flex' : 'none';
+  }
+  const iconPathTarget = qs('#iconPathTarget');
+  if (iconPathTarget) {
+    iconPathTarget.setAttribute('d',
+      isSingle
+        ? 'M5 3 H19 A 2 2 0 0 1 21 5 V19 A 2 2 0 0 1 19 21 H5 A 2 2 0 0 1 3 19 V5 A 2 2 0 0 1 5 3 Z'
+        : 'M12 12 H21 V19 A 2 2 0 0 1 19 21 H12 Z'
+    );
+  }
+  dom.btnSelectFixedHeader.style.display = (!isGrid && !isEdit && m === 'withHeader') ? 'inline-flex' : 'none';
+  dom.btnSelectHeader.style.display = (!isGrid && !isSingle && !isEdit) ? 'inline-flex' : 'none';
+  dom.btnSelectHeaderRow.style.display = (!isGrid && !isEdit && m === 'withHeader') ? 'inline-flex' : 'none';
+  dom.btnSelectTarget.style.display = (isGrid || isEdit) ? 'none' : 'inline-flex';
+  dom.btnClearHeader.style.display = (isGrid || isEdit) ? 'none' : 'inline-flex';
+  if (dom.positionSettingItem) {
+    dom.positionSettingItem.style.display = (!isSingle && !isGrid && !isEdit) ? 'flex' : 'none';
+  }
+  dom.btnSelectTarget.disabled = !isSingle;
+  dom.btnSelectHeaderRow.disabled = true;
+  updateLineToolsVisibility();
+  renderEditOverlay();
+}
 
 // ===== Toggle groups =====
 setupToggleGroup('headerPositionGroup', 'headerPosition');
 
 setupToggleGroup('selectionModeGroup', 'selectionMode', (val) => {
-	state.headerRegion = null;
-	state.headerCells = [];
-	state.targetRegion = null;
-	state.targetCells = [];
-	state.headerRect = null;
-	state.headerImageData = null;
-	state.headerRowRegion = null;
-	state.headerRowCells = [];
-	state.headerRowImageData = null;
-	state.fixedHeaderRegion = null;
-	state.fixedHeaderImageData = null;
+  state.undoStack = [];
+  state._cropPreview = null;
+  if (dom.btnCropExec) dom.btnCropExec.style.display = 'none';
+  state.headerRegion = null;
+  state.targetRegion = null;
+  state.headerImageData = null;
+  state.headerRowRegion = null;
+  state.headerRowCells = [];
+  state.headerRowImageData = null;
+  state.fixedHeaderRegion = null;
+  state.fixedHeaderImageData = null;
 
-	if (val !== 'grid') {
-		state.mode =
-			state.selectionMode === 'withHeader'
-				? 'fixedHeader'
-				: state.selectionMode === 'single'
-					? 'single'
-					: 'header';
-	} else {
-		setDrawTool('line');
-	}
+  if (val === 'grid') {
+    state.mode = 'manual';
+    setEditTool('select');
+    state.selectedEditItemId = null;
+    state.editSelectionRect = null;
+    state._editDrag = null;
+  } else {
+    state.mode = val === 'withHeader' ? 'fixedHeader'
+      : val === 'single' ? 'single' : 'header';
+  }
 
-	state.selectMethod = (val === 'single') ? 'manual' : 'auto';
+  state.selectMethod = (val === 'single' || val === 'grid') ? 'manual' : 'auto';
+  qs('#selectMethodGroup').querySelectorAll('button').forEach((b) => {
+    b.classList.toggle('active', b.dataset.value === state.selectMethod);
+  });
 
-	qs('#selectMethodGroup').querySelectorAll('button').forEach((b) => {
-		b.classList.toggle('active', b.dataset.value === state.selectMethod);
-	});
+  dom.btnClearHeader.disabled = true;
+  applySelectionMode();
+  updateModeButtons();
+  renderEditOverlay();
+  syncSelectionModeUi();
 
-	dom.btnClearHeader.disabled = true;
-	applySelectionMode();
-	updateModeButtons();
+  requestAnimationFrame(() => {
+    syncPersistentCanvasImages();
+    scheduleSelectedImageOverlayFrame();
+  });
 
-	const msgs = {
-		grid: '罫線モード',
-		headerOnly: '見出しを選択してください',
-		withHeader: '固定ヘッダーを選択してください',
-		single: '抽出する範囲を選択してください'
-	};
-	showToast(msgs[state.selectionMode]);
+  const msgs = {
+    grid: '編集モード',
+    headerOnly: '見出しを選択してください',
+    withHeader: '固定ヘッダーを選択してください',
+    single: '抽出する範囲を選択してください'
+  };
+  showToast(msgs[val] || '');
 });
 
 setupToggleGroup('selectMethodGroup', 'selectMethod', () => {
-	if (state.mode === 'target' && state.selectMethod === 'manual') state.mode = 'manual';
-	else if (state.mode === 'manual' && state.selectMethod === 'auto') state.mode = 'target';
-	updateModeButtons();
+  if (state.mode === 'target' && state.selectMethod === 'manual') state.mode = 'manual';
+  else if (state.mode === 'manual' && state.selectMethod === 'auto') state.mode = 'target';
+  updateModeButtons();
+  syncSelectionModeUi();
 });
 
-// ===== Line tool visibility =====
-function updateLineToolsVisibility() {
-	const isGrid = state.selectionMode === 'grid';
-	const tg = qs('#drawToolGroup');
-	if (tg) tg.style.display = isGrid ? 'inline-flex' : 'none';
+setupToggleGroup('singleExtractReadTextGroup', 'singleExtractReadText', (val) => {
+  state.singleExtractReadText = val !== 'false';
+  applySelectionMode();
+  syncSelectionModeUi();
+});
+setupToggleGroup('singleExtractTextPositionGroup', 'singleExtractTextPosition');
 
-	const styleGroup = qs('#lineStyleGroup');
-	if (styleGroup) styleGroup.style.display = isGrid ? 'inline-flex' : 'none';
-	if (dom.btnClearLines) dom.btnClearLines.style.display = isGrid ? 'inline-flex' : 'none';
+// ===== Init setups =====
+syncDrawToolUi();
+syncSelectionModeUi();
+setupSelectedImageOverlayFrame();
+setupPersistentCanvasImageVisibility();
+syncPersistentCanvasImages();
+scheduleSelectedImageOverlayFrame();
+setupCanvasInteractions(); // ★ canvas-interactions.js に委譲
+// ===== Crop direction + execute + undo buttons =====
+dom.btnCropH?.addEventListener('click', () => { state.cropDirection = 'horizontal'; });
+dom.btnCropV?.addEventListener('click', () => { state.cropDirection = 'vertical'; });
+dom.btnCropExec?.addEventListener('click', () => {
+  if (state._cropPreview) {
+    executeCrop(state._cropPreview);
+    renderEditOverlay();
+  }
+});
+dom.btnUndo?.addEventListener('click', () => { performUndo().then(() => renderEditOverlay()); });
 
-	if (!isGrid) {
-		state.selectedUserLineIndex = -1;
-		state._toolDrag = null;
-	}
-	if (dom.btnClearLines) dom.btnClearLines.disabled = (state.userLines.length === 0);
-	drawUserLines();
-}
+// ===== Edit tool buttons =====
 
-function applySelectionMode() {
-	const m = state.selectionMode;
-	const isSingle = m === 'single';
-	const isGrid = m === 'grid';
+qs('#drawToolGroup')?.querySelectorAll('[data-tool]').forEach((btn) => {
+  btn.addEventListener('click', () => setEditTool(btn.dataset.tool));
+});
+qs('#btnPasteEditItem')?.addEventListener('click', () => {
+  pasteEditClipboardAt(getViewportCenterCanvasPoint());
+});
+qs('#btnDeleteEditItem')?.addEventListener('click', () => {
+  removeSelectedEditItem();
+});
+// テキスト入力はPDF上のインライン入力に移行（#editTextInputは不要）
 
-	dom.btnSelectFixedHeader.style.display = (!isGrid && m === 'withHeader') ? 'inline-flex' : 'none';
-	dom.btnSelectHeader.style.display = (!isGrid && !isSingle) ? 'inline-flex' : 'none';
-	dom.btnSelectHeaderRow.style.display = (!isGrid && m === 'withHeader') ? 'inline-flex' : 'none';
-	dom.btnSelectTarget.style.display = isGrid ? 'none' : 'inline-flex';
-	dom.btnClearHeader.style.display = isGrid ? 'none' : 'inline-flex';
-
-	const positionBtns = dom.positionSettingItem.querySelectorAll('button');
-	positionBtns.forEach((btn) => { btn.disabled = isSingle || isGrid; });
-
-	dom.positionSettingItem.style.opacity = (isSingle || isGrid) ? '0.5' : '1';
-	dom.positionSettingItem.querySelector('label').style.opacity = (isSingle || isGrid) ? '0.5' : '1';
-
-	dom.btnSelectTarget.disabled = !isSingle;
-	dom.btnSelectHeaderRow.disabled = true;
-
-	updateLineToolsVisibility();
-}
 
 // ===== Sliders =====
 dom.gridThreshold?.addEventListener('input', () => {
-	dom.thresholdValue.textContent = dom.gridThreshold.value;
+  dom.thresholdValue.textContent = dom.gridThreshold.value;
 });
 dom.minLineLen?.addEventListener('input', () => {
-	dom.minLineLenValue.textContent = dom.minLineLen.value;
+  dom.minLineLenValue.textContent = dom.minLineLen.value;
 });
 dom.gridThreshold?.addEventListener('dblclick', () => {
-	dom.gridThreshold.value = 170;
-	dom.thresholdValue.textContent = 170;
+  dom.gridThreshold.value = 170;
+  dom.thresholdValue.textContent = 170;
 });
 dom.minLineLen?.addEventListener('dblclick', () => {
-	dom.minLineLen.value = 20;
-	dom.minLineLenValue.textContent = 20;
+  dom.minLineLen.value = 30;
+  dom.minLineLenValue.textContent = 30;
 });
 
 // ===== listName =====
 if (dom.listNameInput) {
-	dom.listNameInput.addEventListener('focus', (e) => {
-		e.target.select();
-		e.target.addEventListener('mouseup', function prevent(e2) {
-			e2.preventDefault();
-			e.target.removeEventListener('mouseup', prevent);
-		});
-	});
-
-	dom.listNameInput.addEventListener('keydown', (e) => {
-		if (e.key === 'Enter') e.target.blur();
-	});
-
-	dom.listNameInput.addEventListener('change', (e) => {
-		const oldName = getCurrentListName();
-		const newName = e.target.value.trim() || '名称未設定';
-
-		if (oldName !== newName) {
-			const pageNum = state.selectedPages[state.currentWorkPage];
-
-			for (let i = 0; i < state.pages.length; i++) {
-				if (state.pages[i].pageNum === pageNum) {
-					state.pages[i].drawingName = newName;
-					break;
-				}
-			}
-
-			state.extractedImages.forEach((img) => {
-				if (img.listName === oldName) img.listName = newName;
-			});
-
-			if (state.collapsedGroups[oldName] !== undefined) {
-				state.collapsedGroups[newName] = state.collapsedGroups[oldName];
-				delete state.collapsedGroups[oldName];
-			}
-
-			renderExtractedList(true);
-			showToast('リスト名を変更しました');
-		} else {
-			e.target.value = oldName;
-		}
-	});
+  dom.listNameInput.addEventListener('focus', (e) => {
+    e.target.select();
+    e.target.addEventListener('mouseup', function prevent(e2) {
+      e2.preventDefault();
+      e.target.removeEventListener('mouseup', prevent);
+    });
+  });
+  dom.listNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') e.target.blur();
+  });
+  dom.listNameInput.addEventListener('change', (e) => {
+    const oldName = getCurrentListName();
+    const newName = e.target.value.trim() || '名称未設定';
+    if (oldName !== newName) {
+      const pageNum = state.selectedPages[state.currentWorkPage];
+      for (let i = 0; i < state.pages.length; i++) {
+        if (state.pages[i].pageNum === pageNum) {
+          state.pages[i].drawingName = newName;
+          break;
+        }
+      }
+      state.extractedImages.forEach((img) => {
+        if (img.listName === oldName) img.listName = newName;
+      });
+      if (state.collapsedGroups[oldName] !== undefined) {
+        state.collapsedGroups[newName] = state.collapsedGroups[oldName];
+        delete state.collapsedGroups[oldName];
+      }
+      renderExtractedList(true);
+      showToast('リスト名を変更しました');
+    } else {
+      e.target.value = oldName;
+    }
+  });
 }
 
 // ===== Border checkbox =====
 if (dom.addBorderCheckbox) {
-	const borderLabel = qs('#borderCheckboxLabel');
-	const borderText = qs('#borderCheckboxText');
-
-	dom.addBorderCheckbox.addEventListener('change', (e) => {
-		state.addBorder = e.target.checked;
-		if (e.target.checked) {
-			if (borderLabel) borderLabel.classList.add('active');
-			if (borderText) borderText.textContent = 'あり';
-		} else {
-			if (borderLabel) borderLabel.classList.remove('active');
-			if (borderText) borderText.textContent = 'なし';
-		}
-	});
+  const borderLabel = qs('#borderCheckboxLabel');
+  const borderText = qs('#borderCheckboxText');
+  dom.addBorderCheckbox.addEventListener('change', (e) => {
+    state.addBorder = e.target.checked;
+    if (e.target.checked) {
+      if (borderLabel) borderLabel.classList.add('active');
+      if (borderText) borderText.textContent = 'あり';
+    } else {
+      if (borderLabel) borderLabel.classList.remove('active');
+      if (borderText) borderText.textContent = 'なし';
+    }
+  });
 }
 
 // ===== File input =====
-dom.pdfInput?.addEventListener('change', (e) => {
-	handleFile(e.target.files[0]);
-});
+dom.pdfInput?.addEventListener('change', (e) => { handleFile(e.target.files[0]); });
 dom.dropZone?.addEventListener('dragover', (e) => {
-	e.preventDefault();
-	dom.dropZone.classList.add('dragover');
+  e.preventDefault();
+  dom.dropZone.classList.add('dragover');
 });
-dom.dropZone?.addEventListener('dragleave', () => {
-	dom.dropZone.classList.remove('dragover');
-});
+dom.dropZone?.addEventListener('dragleave', () => { dom.dropZone.classList.remove('dragover'); });
 dom.dropZone?.addEventListener('drop', (e) => {
-	e.preventDefault();
-	dom.dropZone.classList.remove('dragover');
-	handleFile(e.dataTransfer.files[0]);
+  e.preventDefault();
+  dom.dropZone.classList.remove('dragover');
+  handleFile(e.dataTransfer.files[0]);
 });
 
 // ===== step2 buttons =====
 dom.btnSelectAll?.addEventListener('click', () => {
-	state.pages.forEach((p) => { p.selected = true; });
-	updateThumbnailStyles();
-	updatePageControls();
+  state.pages.forEach((p) => { p.selected = true; });
+  updateThumbnailStyles();
+  updatePageControls();
 });
 dom.btnDeselectAll?.addEventListener('click', () => {
-	state.pages.forEach((p) => { p.selected = false; });
-	updateThumbnailStyles();
-	updatePageControls();
+  state.pages.forEach((p) => { p.selected = false; });
+  updateThumbnailStyles();
+  updatePageControls();
 });
 dom.goToStep3?.addEventListener('click', () => {
-	state.selectedPages = state.pages.filter((p) => p.selected).map((p) => p.pageNum);
-	state.currentWorkPage = 0;
-	resetWorkState();
-	renderWorkPage();
-	showStep(3);
+  state.selectedPages = state.pages.filter((p) => p.selected).map((p) => p.pageNum);
+  state.currentWorkPage = 0;
+  resetWorkState();
+  renderFloorList();
+  updateFloorSelector();
+  showStep('2b');
 });
 
+// ===== Floor management =====
+function renderFloorList() {
+  if (!dom.floorList) return;
+  dom.floorList.innerHTML = '';
+  state.floors.forEach((floor) => {
+    if (floor.id === 'default') return;
+    const el = document.createElement('div');
+    el.className = 'floor-item';
+    el.innerHTML =
+      '<div class="floor-item-name">' +
+      '<span class="material-symbols-rounded">layers</span>' +
+      '<span>' + floor.name + '</span>' +
+      '</div>' +
+      '<div class="floor-item-actions">' +
+      '<button class="btn-floor-remove" title="削除"><span class="material-symbols-rounded" style="font-size:18px">close</span></button>' +
+      '</div>';
+    el.querySelector('.btn-floor-remove').addEventListener('click', () => {
+      state.floors = state.floors.filter((f) => f.id !== floor.id);
+      state.extractedImages.forEach((img) => {
+        if (img.floorId === floor.id) img.floorId = 'default';
+      });
+      if (state.currentFloorId === floor.id) state.currentFloorId = state.floors[0]?.id || 'default';
+      renderFloorList();
+      updateFloorSelector();
+    });
+    dom.floorList.appendChild(el);
+  });
+  if (state.floors.length <= 1) {
+    dom.floorList.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:0.85rem; padding:24px 0;">階層が未登録です。上の入力欄から追加してください。</div>';
+  }
+}
+function updateFloorSelector() {
+  if (!dom.floorSelector) return;
+  dom.floorSelector.innerHTML = '';
+  state.floors.forEach((floor) => {
+    const opt = document.createElement('option');
+    opt.value = floor.id;
+    opt.textContent = floor.name;
+    if (floor.id === state.currentFloorId) opt.selected = true;
+    dom.floorSelector.appendChild(opt);
+  });
+}
+dom.btnAddFloor?.addEventListener('click', () => {
+  const name = dom.floorNameInput?.value.trim();
+  if (!name) { showToast('階層名を入力してください'); return; }
+  state.floors.push({ id: generateFloorId(), name });
+  dom.floorNameInput.value = '';
+  renderFloorList();
+  updateFloorSelector();
+  showToast(name + ' を追加しました');
+});
+dom.floorNameInput?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); dom.btnAddFloor?.click(); }
+});
+dom.goToStep3FromFloors?.addEventListener('click', () => {
+  if (state.floors.length <= 1) {
+    state.floors = [{ id: 'default', name: '未分類' }];
+  }
+  state.currentFloorId = state.floors[0].id;
+  updateFloorSelector();
+  renderWorkPage().then(() => { renderEditOverlay(); });
+  showStep(3);
+});
+dom.btnBackToStep2?.addEventListener('click', () => {
+  showStep(2);
+});
+dom.floorSelector?.addEventListener('change', (e) => {
+  state.currentFloorId = e.target.value;
+  showToast(getCurrentFloorName() + ' に切り替えました');
+});
+qs('#btnAddFloorInStep4')?.addEventListener('click', () => {
+  const name = prompt('追加する階層名を入力してください');
+  if (!name || !name.trim()) return;
+  const newFloor = { id: generateFloorId(), name: name.trim() };
+  state.floors.push(newFloor);
+  state.currentFloorId = newFloor.id;
+  updateFloorSelector();
+  renderExtractedList(true);
+  showToast(newFloor.name + ' を追加しました');
+});
 // ===== mode buttons =====
 dom.btnSelectHeader?.addEventListener('click', () => {
-	state.mode = 'header';
-	updateModeButtons();
+  state.mode = 'header';
+  updateModeButtons();
 });
 dom.btnSelectTarget?.addEventListener('click', () => {
-	if (!state.headerRegion && !state.headerRect && state.selectionMode !== 'single') {
-		showToast('先に見出しを選択してください');
-		return;
-	}
-	state.mode = state.selectMethod === 'manual' ? 'manual' : 'target';
-	updateModeButtons();
+  if (!state.headerRegion && !state.headerRect && state.selectionMode !== 'single') {
+    showToast('先に見出しを選択してください');
+    return;
+  }
+  state.mode = state.selectMethod === 'manual' ? 'manual' : 'target';
+  updateModeButtons();
 });
 dom.btnSelectHeaderRow?.addEventListener('click', () => {
-	if (!state.headerRegion && !state.headerRect) {
-		showToast('先に見出しを選択してください');
-		return;
-	}
-	state.mode = 'headerRow';
-	updateModeButtons();
+  if (!state.headerRegion && !state.headerRect) {
+    showToast('先に見出しを選択してください');
+    return;
+  }
+  state.mode = 'headerRow';
+  updateModeButtons();
 });
 dom.btnSelectFixedHeader?.addEventListener('click', () => {
-	state.mode = 'fixedHeader';
-	updateModeButtons();
+  state.mode = 'fixedHeader';
+  updateModeButtons();
 });
 dom.btnClearHeader?.addEventListener('click', () => {
-	resetPageSelection();
-	updateModeButtons();
+  if (state.selectionMode === 'grid') {
+    state.selectedEditItemId = null;
+    state.editSelectionRect = null;
+    renderEditOverlay();
+    return;
+  }
+  resetPageSelection();
+  updateModeButtons();
 });
 
 // ===== page move =====
 dom.btnPrevWork?.addEventListener('click', () => {
-	if (state.currentWorkPage > 0) {
-		state.currentWorkPage--;
-		dom.canvasContainer.scrollLeft = 0;
-		dom.canvasContainer.scrollTop = 0;
-		resetPageSelection();
-		renderWorkPage();
-	}
+  if (state.currentWorkPage > 0) {
+    state.currentWorkPage--;
+    dom.canvasContainer.scrollLeft = 0;
+    dom.canvasContainer.scrollTop = 0;
+    resetPageSelection();
+    renderWorkPage().then(() => { renderEditOverlay(); });
+  }
 });
 dom.btnNextWork?.addEventListener('click', () => {
-	if (state.currentWorkPage < state.selectedPages.length - 1) {
-		state.currentWorkPage++;
-		dom.canvasContainer.scrollLeft = 0;
-		dom.canvasContainer.scrollTop = 0;
-		resetPageSelection();
-		renderWorkPage();
-	}
+  if (state.currentWorkPage < state.selectedPages.length - 1) {
+    state.currentWorkPage++;
+    dom.canvasContainer.scrollLeft = 0;
+    dom.canvasContainer.scrollTop = 0;
+    resetPageSelection();
+    renderWorkPage().then(() => { renderEditOverlay(); });
+  }
 });
 
-// ===== draw tools =====
-function setDrawTool(tool) {
-	state.drawTool = tool;
-
-	[dom.btnToolSelect, dom.btnToolLine, dom.btnToolRect]
-		.filter(Boolean)
-		.forEach((b) => {
-			b.classList.toggle('active', b.dataset.tool === tool);
-		});
-
-	if (tool !== 'select') {
-		state.selectedUserLineIndex = -1;
-		state.selectedUserLineIndices = [];
-	}
-
-	dom.selectionOverlay.style.cursor = (tool === 'select') ? 'default' : 'crosshair';
-	drawUserLines();
-}
-
-dom.btnToolSelect?.addEventListener('click', () => setDrawTool('select'));
-dom.btnToolLine?.addEventListener('click', () => setDrawTool('line'));
-dom.btnToolRect?.addEventListener('click', () => setDrawTool('rect'));
+// ===== draw tools (罫線スタイルのみ — ツール切替は setEditTool に統一) =====
 
 function applyUserLineStyleFromUI() {
-	if (dom.lineColor) state.userLineStyle.color = dom.lineColor.value || '#ef4444';
-	if (dom.lineWidth) state.userLineStyle.width = parseInt(dom.lineWidth.value, 10) || 4;
-	if (dom.lineWidthValue) dom.lineWidthValue.textContent = String(state.userLineStyle.width);
-	drawUserLines();
+  if (dom.lineColor) state.userLineStyle.color = dom.lineColor.value || '#ef4444';
+  if (dom.lineWidth) state.userLineStyle.width = parseInt(dom.lineWidth.value, 10) || 4;
+  if (dom.lineWidthValue) dom.lineWidthValue.textContent = String(state.userLineStyle.width);
+  drawUserLines();
 }
 dom.lineColor?.addEventListener('input', applyUserLineStyleFromUI);
 dom.lineWidth?.addEventListener('input', applyUserLineStyleFromUI);
 applyUserLineStyleFromUI();
 
-// ===== overlay selection =====
-dom.selectionOverlay?.addEventListener('mousedown', (e) => {
-	if (e.button !== 0) return;
-
-	if (state.selectionMode === 'grid') {
-		const canvasPt = overlayToCanvasPoint(getOverlayCoords(e));
-
-		if (state.drawTool === 'line' || state.drawTool === 'rect') {
-			state._toolDrag = {
-				kind: state.drawTool,
-				startCanvas: canvasPt,
-				lastCanvas: canvasPt
-			};
-			e.preventDefault();
-			return;
-		}
-
-		if (state.drawTool === 'select') {
-			const ep = hitTestUserLineEndpoint(canvasPt);
-			if (ep) {
-				state.selectedUserLineIndex = ep.index;
-				state._toolDrag = {
-					kind: 'resizeLine',
-					startCanvas: canvasPt,
-					lastCanvas: canvasPt,
-					index: ep.index,
-					endpoint: ep.endpoint
-				};
-				drawUserLines();
-				e.preventDefault();
-				return;
-			}
-
-			const hit = hitTestUserLine(canvasPt);
-			state.selectedUserLineIndex = hit;
-
-			if (hit >= 0) {
-				if (!state.selectedUserLineIndices || state.selectedUserLineIndices.indexOf(hit) < 0) {
-					state.selectedUserLineIndices = [hit];
-				}
-				state._toolDrag = {
-					kind: 'moveLine',
-					startCanvas: canvasPt,
-					lastCanvas: canvasPt,
-					indices: state.selectedUserLineIndices.slice(),
-					copyOnDrag: (e.ctrlKey || e.metaKey)
-				};
-				drawUserLines();
-				e.preventDefault();
-				return;
-			}
-		}
-	}
-
-	state.isDragging = true;
-	state.dragStart = getOverlayCoords(e);
-	state.dragCurrent = { ...state.dragStart };
-	dom.selectionOverlay.querySelectorAll('.selection-rect:not(.confirmed)').forEach((r) => r.remove());
-});
-
-dom.selectionOverlay?.addEventListener('mousemove', (e) => {
-	if (state.selectionMode === 'grid' && state._toolDrag) {
-		const canvasPt = overlayToCanvasPoint(getOverlayCoords(e));
-		state._toolDrag.lastCanvas = canvasPt;
-
-		if (state._toolDrag.kind === 'line') {
-			drawUserLines({ preview: snapAxisAligned(state._toolDrag.startCanvas, canvasPt) });
-			return;
-		}
-		if (state._toolDrag.kind === 'rect') {
-			drawUserLines({ preview: rectToLines(state._toolDrag.startCanvas, canvasPt) });
-			return;
-		}
-		return;
-	}
-
-	if (!state.isDragging) return;
-
-	state.dragCurrent = getOverlayCoords(e);
-	dom.selectionOverlay.querySelectorAll('.selection-rect:not(.confirmed)').forEach((r) => r.remove());
-	const r = calcRect(state.dragStart, state.dragCurrent);
-	drawRect(
-		r,
-		state.mode === 'fixedHeader'
-			? 'fixed-header-sel'
-			: state.mode === 'headerRow'
-				? 'header-row-sel'
-				: state.mode === 'header'
-					? 'header-sel'
-					: 'target-sel'
-	);
-});
-
-dom.selectionOverlay?.addEventListener('mouseup', (e) => {
-	if (state.selectionMode === 'grid' && state._toolDrag) {
-		const start = state._toolDrag.startCanvas;
-		const end = state._toolDrag.lastCanvas || start;
-
-		if (state._toolDrag.kind === 'line') {
-			const L = snapAxisAligned(start, end);
-			if (Math.hypot(L.x2 - L.x1, L.y2 - L.y1) >= 5) {
-				state.userLines.push(L);
-				saveUserLinesForCurrentPage();
-				showToast('直線を追加しました');
-			}
-			state._toolDrag = null;
-			drawUserLines();
-			return;
-		}
-
-		if (state._toolDrag.kind === 'rect') {
-			const rectLines = rectToLines(start, end);
-			if (Math.abs(end.x - start.x) >= 5 && Math.abs(end.y - start.y) >= 5) {
-				rectLines.forEach((L) => state.userLines.push(L));
-				saveUserLinesForCurrentPage();
-				showToast('矩形を追加しました');
-			}
-			state._toolDrag = null;
-			drawUserLines();
-			return;
-		}
-	}
-
-	if (!state.isDragging) return;
-	state.isDragging = false;
-	state.dragCurrent = getOverlayCoords(e);
-	const r = calcRect(state.dragStart, state.dragCurrent);
-	if (r.w < 5 || r.h < 5) return;
-
-	if (state.mode === 'header') confirmHeaderRegion(r);
-	else if (state.mode === 'fixedHeader') confirmFixedHeaderRegion(r);
-	else if (state.mode === 'headerRow') confirmHeaderRowRegion(r);
-	else if (state.mode === 'target') confirmTargetRegion(r);
-	else if (state.mode === 'manual') confirmManualTarget(r);
-	else if (state.mode === 'single') confirmSingleTarget(r);
-});
-
-// ===== clear lines =====
-dom.btnClearLines?.addEventListener('click', () => {
-	if (state.selectionMode !== 'grid') return;
-	const pageNum = state.selectedPages[state.currentWorkPage];
-	state.userLines = [];
-	state.userLinesByPage[pageNum] = [];
-	state.selectedUserLineIndex = -1;
-	state.selectedUserLineIndices = [];
-	dom.btnClearLines.disabled = true;
-	drawUserLines();
-	showToast('罫線をクリアしました');
-});
-
-// ===== keyboard =====
-window.addEventListener('keydown', (e) => {
-	if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
-
-	if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
-		if (state.drawTool === 'select' && state.selectedUserLineIndex >= 0) {
-			const L = state.userLines[state.selectedUserLineIndex];
-			if (L) {
-				state._copiedUserLine = { ...L };
-				showToast('罫線をコピーしました');
-				e.preventDefault();
-			}
-		}
-		return;
-	}
-
-	if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
-		if (state.drawTool === 'select' && state._copiedUserLine) {
-			const copy = {
-				x1: state._copiedUserLine.x1 + 20,
-				y1: state._copiedUserLine.y1 + 20,
-				x2: state._copiedUserLine.x2 + 20,
-				y2: state._copiedUserLine.y2 + 20
-			};
-			state.userLines.push(copy);
-			state.selectedUserLineIndex = state.userLines.length - 1;
-			saveUserLinesForCurrentPage();
-			drawUserLines();
-			showToast('罫線を貼り付けました');
-			e.preventDefault();
-		}
-		return;
-	}
-
-	if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-	if (state.drawTool !== 'select') return;
-
-	const idxs = (state.selectedUserLineIndices && state.selectedUserLineIndices.length)
-		? state.selectedUserLineIndices.slice()
-		: (state.selectedUserLineIndex >= 0 ? [state.selectedUserLineIndex] : []);
-
-	if (!idxs.length) return;
-
-	idxs.sort((a, b) => b - a);
-	for (let i = 0; i < idxs.length; i++) {
-		if (idxs[i] >= 0 && idxs[i] < state.userLines.length) {
-			state.userLines.splice(idxs[i], 1);
-		}
-	}
-	state.selectedUserLineIndex = -1;
-	state.selectedUserLineIndices = [];
-	saveUserLinesForCurrentPage();
-	drawUserLines();
-	showToast('選択した罫線を削除しました');
-});
-
-// ===== zoom =====
-function getMinScale() {
-	return (!state.pdfDoc || !dom.pdfCanvas.height)
-		? 0.5
-		: Math.max((dom.canvasContainer.clientHeight - 4) / (dom.pdfCanvas.height / 4), 0.3);
-}
-
-function rescaleRegions(ratio) {
-	const sr = (r) => r ? ({ x: r.x * ratio, y: r.y * ratio, w: r.w * ratio, h: r.h * ratio }) : null;
-	const sc = (cells) => cells.map((c) => ({
-		x: c.x * ratio,
-		y: c.y * ratio,
-		w: c.w * ratio,
-		h: c.h * ratio,
-		row: c.row,
-		col: c.col
-	}));
-
-	state.headerRegion = sr(state.headerRegion);
-	state.targetRegion = sr(state.targetRegion);
-	state.headerRect = sr(state.headerRect);
-	state.fixedHeaderRegion = sr(state.fixedHeaderRegion);
-	state.headerRowRegion = sr(state.headerRowRegion);
-	state.headerCells = sc(state.headerCells);
-	state.targetCells = sc(state.targetCells);
-	state.headerRowCells = sc(state.headerRowCells);
-	state.historyRegions = state.historyRegions.map((hr) => ({ type: hr.type, r: sr(hr.r) }));
-}
-
-dom.canvasContainer?.addEventListener('wheel', (e) => {
-	if (e.ctrlKey || e.metaKey) return;
-	e.preventDefault();
-
-	const old = state.scale;
-	state.scale = Math.min(Math.max(
-		state.scale + (e.deltaY > 0 ? -0.15 : 0.15),
-		getMinScale()
-	), 4);
-
-	if (state.scale === old) return;
-
-	rescaleRegions(state.scale / old);
-
-	const cRect = dom.canvasContainer.getBoundingClientRect();
-	const zr = state.scale / old;
-	const mx = e.clientX - cRect.left;
-	const my = e.clientY - cRect.top;
-
-	dom.canvasContainer.scrollLeft = (dom.canvasContainer.scrollLeft + mx) * zr - mx;
-	dom.canvasContainer.scrollTop = (dom.canvasContainer.scrollTop + my) * zr - my;
-
-	applyZoomTransform(drawUserLines, redrawState);
-}, { passive: false });
-
-// ===== pan =====
-let _panning = false;
-let _panStart = { x: 0, y: 0 };
-
-dom.selectionOverlay?.addEventListener('contextmenu', (e) => e.preventDefault());
-dom.selectionOverlay?.addEventListener('mousedown', (e) => {
-	if (e.button === 2) {
-		e.preventDefault();
-		_panning = true;
-		_panStart = { x: e.clientX, y: e.clientY };
-		dom.selectionOverlay.style.cursor = 'grabbing';
-	}
-});
-window.addEventListener('mousemove', (e) => {
-	if (_panning) {
-		dom.canvasContainer.scrollLeft -= e.clientX - _panStart.x;
-		dom.canvasContainer.scrollTop -= e.clientY - _panStart.y;
-		_panStart = { x: e.clientX, y: e.clientY };
-	}
-});
-window.addEventListener('mouseup', () => {
-	if (_panning) {
-		_panning = false;
-		dom.selectionOverlay.style.cursor = '';
-	}
-});
-
 // ===== clear images =====
 dom.btnClearImages?.addEventListener('click', () => {
-	state.extractedImages = [];
-	state.collapsedGroups = {};
-	renderExtractedList();
-	showToast('画像をすべてクリアしました');
+  state.extractedImages = [];
+  state.collapsedGroups = {};
+  renderExtractedList();
+  showToast('画像をすべてクリアしました');
 });
 
 // ===== reset =====
 dom.btnResetAlls.forEach((btn) => {
-	btn.addEventListener('click', () => {
-		state.pdfDoc = null;
-		state.pages = [];
-		state.selectedPages = [];
-		state.currentWorkPage = 0;
-		state.scale = 4;
-		resetPageSelection();
-		state.extractedImages = [];
-		state.collapsedGroups = {};
-		renderExtractedList();
-
-		state.selectionMode = 'headerOnly';
-		state.selectMethod = 'auto';
-		state.headerPosition = 'left';
-		state.addBorder = true;
-
-		qs('#selectionModeGroup').querySelectorAll('button').forEach((b) => {
-			b.classList.toggle('active', b.dataset.value === 'headerOnly');
-		});
-		qs('#selectMethodGroup').querySelectorAll('button').forEach((b) => {
-			b.classList.toggle('active', b.dataset.value === 'auto');
-		});
-		qs('#headerPositionGroup').querySelectorAll('button').forEach((b) => {
-			b.classList.toggle('active', b.dataset.value === 'left');
-		});
-
-		if (dom.addBorderCheckbox) {
-			dom.addBorderCheckbox.checked = true;
-			const lbl = qs('#borderCheckboxLabel');
-			const txt = qs('#borderCheckboxText');
-			if (lbl) lbl.classList.add('active');
-			if (txt) txt.textContent = 'あり';
-		}
-
-		dom.pdfInput.value = '';
-		dom.pageThumbnails.innerHTML = '';
-		dom.btnDownloadAll.disabled = true;
-
-		applySelectionMode();
-		showStep(1);
-		showToast('リセットしました');
-	});
+  btn.addEventListener('click', () => {
+    state.pdfDoc = null;
+    state.pages = [];
+    state.selectedPages = [];
+    state.currentWorkPage = 0;
+    state.scale = 4;
+    resetPageSelection();
+    state.extractedImages = [];
+    state.collapsedGroups = {};
+    state.userLines = [];
+    state.userLinesByPage = {};
+    state.selectedUserLineIndex = -1;
+    state.selectedUserLineIndices = [];
+    state._copiedUserLine = null;
+    state._toolDrag = null;
+    state.editItemsByPage = {};
+    state.cropOperationsByPage = {};
+    state.editItems = [];
+    state.editClipboard = null;
+    state.editSelectionRect = null;
+    state.selectedEditItemId = null;
+    state.selectedEditItemIds = [];
+    state.pendingEditText = '';
+    state.floors = [{ id: 'default', name: '未分類' }];
+    state.currentFloorId = 'default';
+    state.collapsedFloors = {};
+    state.drawTool = 'select';
+    state._editDrag = null;
+    drawUserLines();
+    renderExtractedList();
+    state.selectionMode = 'headerOnly';
+    state.selectMethod = 'auto';
+    state.headerPosition = 'left';
+    state.addBorder = true;
+    qs('#selectionModeGroup').querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.value === 'headerOnly');
+    });
+    qs('#selectMethodGroup').querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.value === 'auto');
+    });
+    qs('#headerPositionGroup').querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.value === 'left');
+    });
+    if (dom.addBorderCheckbox) {
+      dom.addBorderCheckbox.checked = true;
+      const lbl = qs('#borderCheckboxLabel');
+      const txt = qs('#borderCheckboxText');
+      if (lbl) lbl.classList.add('active');
+      if (txt) txt.textContent = 'あり';
+    }
+    dom.pdfInput.value = '';
+    dom.pageThumbnails.innerHTML = '';
+    dom.btnDownloadAll.disabled = true;
+    applySelectionMode();
+    showStep(1);
+    showToast('リセットしました');
+  });
 });
 
 // ===== download =====
-dom.btnDownloadAll.onclick = function() {
-	if (state.extractedImages.length === 0) return;
-
-	if (state.extractedImages.length === 1) {
-		const a = document.createElement('a');
-		a.href = state.extractedImages[0].dataUrl;
-		a.download = getDownloadFileName(state.extractedImages[0], 0) + '.jpg';
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		return;
-	}
-
-	showToast('ZIPファイルを作成中...');
-
-	const zip = new JSZip();
-	for (let i = 0; i < state.extractedImages.length; i++) {
-		const img = state.extractedImages[i];
-		const fn = getDownloadFileName(img, i);
-		zip.folder(img.listName).file(fn + '.jpg', img.dataUrl.split(',')[1], { base64: true });
-	}
-
-	zip.generateAsync({ type: 'base64' })
-		.then((b64) => {
-			const a = document.createElement('a');
-			a.href = 'data:application/zip;base64,' + b64;
-			a.download = '抽出画像.zip';
-			document.body.appendChild(a);
-			a.click();
-			setTimeout(() => document.body.removeChild(a), 500);
-			showToast('ダウンロード完了');
-		})
-		.catch((err) => {
-			showToast('ZIP作成失敗: ' + err.message);
-		});
+dom.btnDownloadAll.onclick = function () {
+  if (state.extractedImages.length === 0) return;
+  if (state.extractedImages.length === 1) {
+    const a = document.createElement('a');
+    a.href = state.extractedImages[0].dataUrl;
+    a.download = getDownloadFileName(state.extractedImages[0], 0) + '.jpg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
+  }
+  showToast('ZIPファイルを作成中...');
+  const zip = new JSZip();
+  for (let i = 0; i < state.extractedImages.length; i++) {
+    const img = state.extractedImages[i];
+    const fn = getDownloadFileName(img, i);
+    const floorName = (state.floors.find((f) => f.id === (img.floorId || 'default')) || { name: '未分類' }).name;
+    zip.folder(floorName).folder(img.listName).file(fn + '.jpg', img.dataUrl.split(',')[1], { base64: true });
+  }
+  zip.generateAsync({ type: 'blob' })
+    .then(async (blob) => {
+      const zipName = '抽出画像.zip';
+      if (window.showSaveFilePicker) {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: zipName,
+            types: [{ description: 'ZIP archive', accept: { 'application/zip': ['.zip'] } }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          showToast('ダウンロード完了');
+          return;
+        } catch (err) {
+          if (err && err.name === 'AbortError') return;
+          console.warn('showSaveFilePicker failed', err);
+        }
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = zipName;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(a.href);
+        document.body.removeChild(a);
+      }, 500);
+      showToast('ダウンロード完了');
+    })
+    .catch((err) => {
+      showToast('ZIP作成失敗: ' + err.message);
+    });
 };
 
 // ===== init =====
 applySelectionMode();
+renderEditOverlay();
 updateModeButtons();
 showStep(1);

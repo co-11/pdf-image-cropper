@@ -35,15 +35,11 @@ export const state = {
 	addBorder: true,
 
 	headerRegion: null,
-	headerCells: [],
 	targetRegion: null,
-	targetCells: [],
 
 	headerImageData: null,
-	headerRect: null,
 
 	headerRowRegion: null,
-	headerRowCells: [],
 	headerRowImageData: null,
 
 	fixedHeaderRegion: null,
@@ -56,18 +52,20 @@ export const state = {
 	historyRegions: [],
 
 	headerFileBaseName: '',
+	singleExtractReadText: true,
+	singleExtractTextPosition: 'top',
 
 	userLinesByPage: {},
 	userLines: [],
-	isDrawingLine: false,
-	_lineStartCanvas: null,
 
-	isDragging: false,
-	dragStart: null,
-	dragCurrent: null,
+
+
 	lastClickedIndex: -1,
 
 	collapsedGroups: {},
+	floors: [{ id: 'default', name: '未分類' }],
+	currentFloorId: 'default',
+	collapsedFloors: {},
 
 	userLineStyle: { color: '#ef4444', width: 4 },
 
@@ -75,7 +73,20 @@ export const state = {
 	selectedUserLineIndex: -1,
 	selectedUserLineIndices: [],
 	_toolDrag: null,
-	_copiedUserLine: null
+	_copiedUserLine: null,
+	cropOperationsByPage: {},
+	_cropDrag: null,
+	_cropPreview: null,
+	cropDirection: 'horizontal',
+	undoStack: [],
+	editItemsByPage: {},
+	editItems: [],
+	editClipboard: null,
+	editSelectionRect: null,
+	selectedEditItemId: null,
+	selectedEditItemIds: [],
+	pendingEditText: '',
+	_editDrag: null
 };
 
 export let _renderScale = 4;
@@ -95,9 +106,11 @@ export const dom = {
 
 	step1: qs('#step1'),
 	step2: qs('#step2'),
+	step2b: qs('#step2b'),
 	step3: qs('#step3'),
 	st1: qs('#st1'),
 	st2: qs('#st2'),
+	st2b: qs('#st2b'),
 	st3: qs('#st3'),
 
 	pageThumbnails: qs('#pageThumbnails'),
@@ -131,6 +144,12 @@ export const dom = {
 	btnNextWork: qs('#btnNextWork'),
 	btnClearImages: qs('#btnClearImages'),
 	btnResetAlls: document.querySelectorAll('.btn-reset-all'),
+	floorList: qs('#floorList'),
+	floorNameInput: qs('#floorNameInput'),
+	btnAddFloor: qs('#btnAddFloor'),
+	goToStep3FromFloors: qs('#goToStep3FromFloors'),
+	btnBackToStep2: qs('#btnBackToStep2'),
+	floorSelector: qs('#floorSelector'),
 
 	toast: qs('#toast'),
 	toastMsg: qs('#toastMsg'),
@@ -144,10 +163,18 @@ export const dom = {
 	minLineLenValue: qs('#minLineLenValue'),
 
 	addBorderCheckbox: qs('#addBorderCheckbox'),
+	singleExtractReadSettingItem: qs('#singleExtractReadSettingItem'),
+	singleExtractTextPositionSettingItem: qs('#singleExtractTextPositionSettingItem'),
 
-	btnToolSelect: qs('#btnToolSelect'),
-	btnToolLine: qs('#btnToolLine'),
-	btnToolRect: qs('#btnToolRect'),
+	btnDrawSelect: qs('#btnDrawSelect'),
+	btnDrawCopy: qs('#btnDrawCopy'),
+	btnDrawLine: qs('#btnDrawLine'),
+	btnDrawRect: qs('#btnDrawRect'),
+	btnDrawText: qs('#btnDrawText'),
+	btnCropH: qs('#btnCropH'),
+	btnCropV: qs('#btnCropV'),
+	btnCropExec: qs('#btnCropExec'),
+	btnUndo: qs('#btnUndo'),
 
 	lineColor: qs('#lineColor'),
 	lineWidth: qs('#lineWidth'),
@@ -166,17 +193,19 @@ export function showToast(msg, duration = 2500) {
 
 // ===== Steps UI =====
 export function showStep(n) {
-	[dom.step1, dom.step2, dom.step3].forEach((s, i) => {
+	const stepMap = { 1: 0, 2: 1, '2b': 2, 3: 3 };
+	const idx = stepMap[n] ?? 0;
+	[dom.step1, dom.step2, dom.step2b, dom.step3].forEach((s, i) => {
 		if (!s) return;
-		s.classList.toggle('hidden', i + 1 !== n);
+		s.classList.toggle('hidden', i !== idx);
 		setTimeout(() => {
-			s.style.opacity = (i + 1 === n) ? '1' : '0';
+			s.style.opacity = (i === idx) ? '1' : '0';
 		}, 10);
 	});
-	[dom.st1, dom.st2, dom.st3].forEach((s, i) => {
+	[dom.st1, dom.st2, dom.st2b, dom.st3].forEach((s, i) => {
 		if (!s) return;
-		s.classList.toggle('active', i + 1 === n);
-		s.classList.toggle('completed', i + 1 < n);
+		s.classList.toggle('active', i === idx);
+		s.classList.toggle('completed', i < idx);
 	});
 }
 
@@ -245,13 +274,9 @@ export function sanitizeFileBaseName(s) {
 
 export function resetPageSelection() {
 	state.headerRegion = null;
-	state.headerCells = [];
 	state.targetRegion = null;
-	state.targetCells = [];
-	state.headerRect = null;
 	state.headerImageData = null;
 	state.headerRowRegion = null;
-	state.headerRowCells = [];
 	state.headerRowImageData = null;
 	state.fixedHeaderRegion = null;
 	state.fixedHeaderImageData = null;
@@ -272,7 +297,8 @@ export function resetPageSelection() {
 
 export function resetWorkState() {
 	state.extractedImages = [];
-	state.scale = 2;
+	state.undoStack = [];
+	state._cropPreview = null;
 	if (dom.canvasContainer) {
 		dom.canvasContainer.scrollLeft = 0;
 		dom.canvasContainer.scrollTop = 0;
@@ -305,21 +331,34 @@ export function overlayToCanvasPoint(p) {
 	};
 }
 
+function applyScaleTransform(element, scale) {
+	if (!element) return;
+	element.style.transformOrigin = '0 0';
+	element.style.transform = scale === 1 ? '' : `scale(${scale})`;
+}
+function setOverlaySize(width, height) {
+	if (!dom.selectionOverlay) return;
+	dom.selectionOverlay.style.width = width + 'px';
+	dom.selectionOverlay.style.height = height + 'px';
+}
 export function applyZoomTransform(drawUserLines, redrawState) {
 	const r = state.scale / _renderScale;
 
-	dom.pdfCanvas.style.transformOrigin = '0 0';
-	dom.pdfCanvas.style.transform = r === 1 ? '' : `scale(${r})`;
+	applyScaleTransform(dom.pdfCanvas, r);
 
-	if (dom.lineCanvas) {
-		dom.lineCanvas.style.transformOrigin = '0 0';
-		dom.lineCanvas.style.transform = r === 1 ? '' : `scale(${r})`;
-	}
+	applyScaleTransform(dom.lineCanvas, r);
 
-	dom.selectionOverlay.style.width = (dom.pdfCanvas.width * r) + 'px';
-	dom.selectionOverlay.style.height = (dom.pdfCanvas.height * r) + 'px';
+	setOverlaySize(dom.pdfCanvas.width * r, dom.pdfCanvas.height * r);
 
 	clearAllOverlays();
 	if (redrawState) redrawState();
 	if (drawUserLines) drawUserLines();
+}
+// ===== Floor helpers =====
+export function generateFloorId() {
+	return 'floor_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+}
+export function getCurrentFloorName() {
+	const floor = state.floors.find((f) => f.id === state.currentFloorId);
+	return floor ? floor.name : '未分類';
 }

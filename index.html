@@ -21,6 +21,10 @@
       </div>
       
       <div style="display: flex; align-items: center; gap: 12px;">
+        <!-- ★ 使い方ボタン ★ -->
+        <a href="https://tcibim.notion.site/799e36eedfe640c1a98a6770abb920d1" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none; display:inline-flex; align-items:center; gap:4px;" title="使い方手順書を開く">
+          <span class="material-symbols-rounded" style="font-size:18px">help_outline</span> 使い方
+        </a>
         <!-- ★ テーマ切り替えボタン ★ -->
         <button id="themeToggle" class="btn btn-icon btn-secondary" style="border-radius: 50%;" title="テーマ切り替え">
           <span class="material-symbols-rounded" id="themeIcon">light_mode</span>
@@ -36,8 +40,12 @@
             <div class="step-num">2</div><span>ページ選択</span>
           </div>
           <div class="step-divider"></div>
+          <div class="step-item" id="st2b">
+            <div class="step-num">3</div><span>階層設定</span>
+          </div>
+          <div class="step-divider"></div>
           <div class="step-item" id="st3">
-            <div class="step-num">3</div><span>抽出作業</span>
+            <div class="step-num">4</div><span>抽出作業</span>
           </div>
         </div>
       </div>
@@ -87,6 +95,28 @@
       </div>
     </div>
 
+    <!-- ステップ2b: 階層設定 -->
+    <div id="step2b" class="step-content hidden">
+      <div class="step-inner">
+        <h2 class="step-title"><span class="material-symbols-rounded">layers</span>作業階層の設定</h2>
+        <p class="hint"><span class="material-symbols-rounded" style="font-size:16px">info</span>抽出作業で使用する階層を追加してください（例：1階床、2階立上り、B1階床）</p>
+        <div style="display:flex; gap:8px; margin-bottom:16px; flex-shrink:0;">
+          <input type="text" id="floorNameInput" class="floor-name-input" placeholder="階層名を入力（例：1階床）">
+          <button class="btn btn-primary btn-sm" id="btnAddFloor">
+            <span class="material-symbols-rounded" style="font-size:16px">add</span> 追加
+          </button>
+        </div>
+        <div id="floorList" class="floor-list"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:16px; margin-top:auto; flex-shrink:0;">
+          <button class="btn btn-secondary" id="btnBackToStep2">
+            <span class="material-symbols-rounded">arrow_back</span> ページ選択に戻る
+          </button>
+          <button class="btn btn-primary" id="goToStep3FromFloors">
+            作業開始 <span class="material-symbols-rounded">arrow_forward</span>
+          </button>
+        </div>
+      </div>
+    </div>
     <!-- ステップ3: 範囲選択・抽出 -->
     <div id="step3" class="step-content hidden" style="padding: 16px; background: var(--surface);">
       <div class="work-area">
@@ -105,10 +135,10 @@
                 <div class="setting-item">
                   <label>モード</label>
                   <div class="btn-group toggle-group" id="selectionModeGroup">
-                    <!-- ★ 罫線モード（見出しのみ の左） ★ -->
+                    <!-- ★ 編集モード（見出しのみ の左） ★ -->
                     <button class="btn" data-value="grid">
-                      <span class="material-symbols-rounded" style="font-size:16px">border_color</span>
-                      罫線
+                      <span class="material-symbols-rounded" style="font-size:16px">edit_square</span>
+                      編集
                     </button>
                     <button class="btn active" data-value="headerOnly">見出しのみ</button>
                     <button class="btn" data-value="withHeader">ヘッダーあり</button>
@@ -143,9 +173,9 @@
                         <div>
                           <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">
                             <span>最小線長</span>
-                            <span id="minLineLenValue">20</span>
+                            <span id="minLineLenValue">30</span>
                           </div>
-                          <input type="range" id="minLineLen" min="10" max="200" value="20" style="width: 100%; accent-color: var(--primary);">
+                          <input type="range" id="minLineLen" min="10" max="200" value="30" style="width: 100%; accent-color: var(--primary);">
                           <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
                             文字の誤検出を防ぐための長さの基準です。短い線を拾いたい場合は小さくします。
                           </div>
@@ -159,7 +189,7 @@
                 </div>
               </div>
               
-              <div style="display: flex; gap: 24px;">
+              <div style="display: flex; gap: 24px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end;">
                 <!-- 見出し位置 (右) -->
                 <div class="setting-item" id="positionSettingItem">
                   <label>見出し位置</label>
@@ -171,6 +201,22 @@
                   </div>
                 </div>
                 
+                <div class="setting-item" id="singleExtractTextPositionSettingItem" style="display:none;">
+                  <label>読取位置</label>
+                  <div class="btn-group toggle-group" id="singleExtractTextPositionGroup">
+                    <button class="btn active" data-value="top">上</button>
+                    <button class="btn" data-value="bottom">下</button>
+                    <button class="btn" data-value="left">左</button>
+                    <button class="btn" data-value="right">右</button>
+                  </div>
+                </div>
+                <div class="setting-item" id="singleExtractReadSettingItem" style="display:none;">
+                  <label>単一抽出の文字読取</label>
+                  <div class="btn-group toggle-group" id="singleExtractReadTextGroup">
+                    <button class="btn active" data-value="true">ON</button>
+                    <button class="btn" data-value="false">OFF</button>
+                  </div>
+                </div>
                 <!-- ★ 外枠線 (右端にチェックボックスで追加) ★ -->
                 <div class="setting-item" id="borderSettingItem">
                   <label>外枠線</label>
@@ -192,21 +238,43 @@
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                   <!-- ★ 罫線ツール（モードの一番左）: 選択 / 直線 / 矩形 ★ -->
                   <div class="btn-group" id="drawToolGroup">
-                    <button class="btn active" id="btnToolSelect" data-tool="select" title="罫線を選択・移動（端点ドラッグで延長 / Ctrl+C,Vでコピー / Deleteで削除）">
+                    <button class="btn active" id="btnDrawSelect" data-tool="select" title="罫線を選択・移動（端点ドラッグで延長 / Ctrl+C,Vでコピー / Deleteで削除）">
                       <span class="material-symbols-rounded" style="font-size:18px">arrow_selector_tool</span>
                       選択
                     </button>
-                    <button class="btn" id="btnToolLine" data-tool="line" title="直線罫線を描画（ドラッグ）">
+                    <button class="btn" id="btnDrawCopy" data-tool="copy" title="範囲をコピーして貼り付け（ドラッグ→Ctrl+Vで配置）">
+										  <span class="material-symbols-rounded" style="font-size:18px">content_copy</span>
+										  コピー
+										</button>
+                    <button class="btn" id="btnDrawLine" data-tool="line" title="直線罫線を描画（ドラッグ）">
                       <svg width="18" height="18" viewBox="0 0 24 24" style="margin-right:4px" aria-hidden="true">
                         <path d="M7 4 V 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
                         <path d="M4 7 H 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
                       </svg>
                       直線
                     </button>
-                    <button class="btn" id="btnToolRect" data-tool="rect" title="矩形罫線を描画（ドラッグ）">
+                    <button class="btn" id="btnDrawRect" data-tool="rect" title="矩形罫線を描画（ドラッグ）">
                       <span class="material-symbols-rounded" style="font-size:18px">crop_square</span>
                       矩形
                     </button>
+                    <button class="btn" id="btnCropH" data-tool="crop" data-direction="horizontal" title="水平方向に帯を選択して切り取り">
+                      <span class="material-symbols-rounded" style="font-size:18px">content_cut</span>
+                      水平切取
+                    </button>
+                    <button class="btn" id="btnCropV" data-tool="crop" data-direction="vertical" title="垂直方向に帯を選択して切り取り">
+                      <span class="material-symbols-rounded" style="font-size:18px;display:inline-block;transform:rotate(90deg)">content_cut</span>
+                      垂直切取
+                    </button>
+                    <button class="btn" id="btnDrawText" data-tool="text" title="クリック位置に文字を配置">
+                      <span class="material-symbols-rounded" style="font-size:18px">text_fields</span>
+                      文字入力
+                    </button>
+                  </div>
+                  <button class="btn btn-primary btn-sm" id="btnCropExec" style="display:none;" title="切り取りを実行">
+                    <span class="material-symbols-rounded" style="font-size:16px">check</span> 実行
+                  </button>
+                  <div id="editTextSettingItem" style="display:none; align-items:center; gap:8px;">
+                    <input type="text" id="editTextInput" class="edit-tool-input" placeholder="配置するテキスト">
                   </div>
                   <div class="btn-group">
                     <!-- 固定ヘッダー -->
@@ -222,7 +290,7 @@
                   <!-- 見出し -->
                   <button class="btn active" id="btnSelectHeader" style="display:inline-flex;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
-                      <path id="iconPathHeader" d="M12 3 H 5 A 2 2 0 0 0 3 5 V 19 A 2 2 0 0 0 5 21 H 12 Z" fill="currentColor" stroke="none" />
+                      <path id="iconPathHeader" d="M3 12 V19 A 2 2 0 0 0 5 21 H12 V12 Z" fill="currentColor" stroke="none" />
                       <rect x="3" y="3" width="18" height="18" rx="2" />
                       <line x1="12" y1="3" x2="12" y2="21" />
                       <line x1="3" y1="12" x2="21" y2="12" />
@@ -242,7 +310,7 @@
                   <!-- 対象範囲 -->
                   <button class="btn" id="btnSelectTarget" disabled style="display:inline-flex;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
-                      <path id="iconPathTarget" d="M12 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 12 Z" fill="currentColor" stroke="none" />
+                      <path id="iconPathTarget" d="M12 12 H21 V19 A 2 2 0 0 1 19 21 H12 Z" fill="currentColor" stroke="none" />
                       <rect x="3" y="3" width="18" height="18" rx="2" />
                       <line x1="12" y1="3" x2="12" y2="21" />
                       <line x1="3" y1="12" x2="21" y2="12" />
@@ -266,6 +334,9 @@
                     </label>
                   </div>
                   <!-- 罫線クリア（gridモード時のみ表示） -->
+                  <button class="btn btn-sm btn-secondary" id="btnUndo" disabled title="元に戻す (Ctrl+Z)" style="display:none;">
+                    <span class="material-symbols-rounded" style="font-size:16px">undo</span> 元に戻す
+                  </button>
                   <button class="btn btn-sm btn-danger-outline" id="btnClearLines" disabled title="追加した罫線をクリア" style="display:none;">
                     <span class="material-symbols-rounded" style="font-size:16px">ink_eraser</span> 罫線クリア
                   </button>
@@ -278,8 +349,8 @@
               
               <div class="main-canvas-wrapper" id="canvasContainer">
                 <canvas id="pdfCanvas"></canvas>
-                <canvas id="lineCanvas" style="position:absolute; left:0; top:0; pointer-events:none;"></canvas>
                 <div class="selection-overlay" id="selectionOverlay"></div>
+                <canvas id="lineCanvas" style="position:absolute; left:0; top:0; pointer-events:none; z-index:25;"></canvas>
               </div>
               
               <!-- ★ キャンバス下部に操作ヒントを追加 ★ -->
@@ -301,6 +372,14 @@
                 <input type="text" id="listNameInput" class="list-name-input" value="図面名称" title="クリックして名称を編集">
               </div>
               
+              <!-- 作業階層セレクタ -->
+              <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+                <span class="material-symbols-rounded" style="color: var(--warning); font-size: 20px; flex-shrink: 0;">layers</span>
+                <select id="floorSelector" class="floor-selector"></select>
+                <button class="btn btn-icon btn-secondary" id="btnAddFloorInStep4" title="階層を追加" style="padding:0; width:32px; height:32px; border-radius:var(--radius-sm); flex-shrink:0;">
+                  <span class="material-symbols-rounded" style="font-size:18px">add</span>
+                </button>
+              </div>
               <!-- ナビゲーション (ページ送り・中央揃え) -->
               <div style="display: flex; justify-content: center; align-items: center; gap: 12px; width: 100%;">
                 <button class="btn btn-icon btn-secondary" id="btnPrevWork" title="前のページ" style="border-radius: 50%; width: 36px; height: 36px; padding: 0;">
